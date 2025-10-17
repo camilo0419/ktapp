@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Transacción{% endblock %}
+{% block content %}
+<div class="card grid">
+  <form method="post" class="grid" id="tx-form">
+    {% csrf_token %}
+    <label>Cliente {{ form.cliente }}</label>
+    <label>Tipo {{ form.tipo }}</label>
+    <label id="wrap-campania" style="display:none;"># Campaña {{ form.campania }}</label>
+    <label>Valor {{ form.valor }}</label>
+    <label>Pagado {{ form.pagado }}</label>
+    <div class="row">
+      <label>Fecha de pago {{ form.fecha_pago }}</label>
+      <label>Hora de pago {{ form.hora_pago }}</label>
+    </div>
+    <label>Notas {{ form.notas }}</label>
+    <div class="row">
+      <button class="btn">Guardar</button>
+      <a class="btn alt" href="{% url 'cartera:clientes_list' %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const tipo = document.getElementById("id_tipo");
+  const campWrap = document.getElementById("wrap-campania");
+  const camp = document.getElementById("id_campania");
+  const chk = document.getElementById("id_pagado");
+  const fp = document.getElementById("id_fecha_pago");
+  const hp = document.getElementById("id_hora_pago");
+
+  function toggleCampania(){
+    if (tipo && tipo.value === "NAT"){
+      campWrap.style.display = "";
+      if (camp) camp.required = true;
+    } else {
+      campWrap.style.display = "none";
+      if (camp){ camp.required = false; camp.value = ""; }
+    }
+  }
+  function togglePago(){
+    const on = chk && chk.checked;
+    if (fp) fp.disabled = !on;
+    if (hp) hp.disabled = !on;
+  }
+
+  if (tipo){ tipo.addEventListener("change", toggleCampania); toggleCampania(); }
+  if (chk){ chk.addEventListener("change", togglePago); togglePago(); }
+})();
+</script>
+{% endblock %}

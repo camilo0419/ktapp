@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Cliente{% endblock %}
+{% block content %}
+<div class="card grid">
+  <form method="post" class="grid">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <label>Nombre {{ form.nombre }}</label>
+    <label>Teléfono {{ form.telefono }}</label>
+    <label>Correo {{ form.correo }}</label>
+    <label>Activo {{ form.activo }}</label>
+    <div class="row">
+      <button class="btn">Guardar</button>
+      <a class="btn alt" href="{% url 'cartera:clientes_list' %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

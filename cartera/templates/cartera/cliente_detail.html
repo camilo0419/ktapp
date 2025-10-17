@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Cliente{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin-top:0">{{ obj.nombre }}</h2>
+  <p><small>{{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}</small></p>
+  <div class="row">
+    <a class="btn" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
+    <a class="btn alt" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
+  </div>
+</div>
+<div class="card" style="margin-top:12px;">
+  <table>
+    <thead><tr><th>Fecha</th><th>Tipo</th><th>Campaña</th><th>Valor</th><th>Estado</th><th>Pago</th><th></th></tr></thead>
+    <tbody>
+    {% for t in tx_list %}
+      <tr>
+        <td>{{ t.creado|date:"Y-m-d H:i" }}</td>
+        <td>{{ t.get_tipo_display }}</td>
+        <td>{{ t.campania }}</td>
+        <td>${{ t.valor|floatformat:0 }}</td>
+        <td>{% if t.pagado %}Pagado{% else %}Pendiente{% endif %}</td>
+        <td>{% if t.pagado %}{{ t.fecha_pago }} {{ t.hora_pago|time:"H:i" }}{% endif %}</td>
+        <td>
+          <a class="btn alt" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
+          {% if not t.pagado %}
+            <a class="btn ok" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7">Sin transacciones.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

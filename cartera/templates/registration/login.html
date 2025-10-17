@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto;">
+  <h2 style="margin-top:0">Iniciar sesión</h2>
+  <form method="post" class="grid">
+    {% csrf_token %}
+    <label>Usuario {{ form.username }}</label>
+    <label>Contraseña {{ form.password }}</label>
+    <button class="btn">Entrar</button>
+  </form>
+  {% if form.errors %}
+    <p style="color:#ff9898;margin-top:8px;">Usuario o contraseña inválidos.</p>
+  {% endif %}
+</div>
+{% endblock %}

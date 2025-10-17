@@ -1,0 +1,51 @@
+# Entornos virtuales
+venv/
+.env/
+*.env
+# Entorno virtual
+venv/
+.venv/
+
+
+# Archivos de compilación y caché
+__pycache__/
+*.py[cod]
+*.sqlite3-journal
+*.log
+
+# Archivos de base de datos local (si usas SQLite en dev)
+db.sqlite3
+db.sqlite3.local.bak
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+.idea/
+
+# Archivos temporales y compilados
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.mo
+*.swp
+*.swo
+
+# Archivos estáticos y medios (solo si se generan automáticamente)
+staticfiles/
+media/
+
+# PyInstaller / build
+dist/
+build/
+*.spec
+
+# Archivos de entorno de Python
+*.egg
+*.egg-info/
+.eggs/
+.Python
+pip-wheel-metadata/
