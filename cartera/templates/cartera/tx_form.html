@@ -7,6 +7,9 @@
     <label>Cliente {{ form.cliente }}</label>
     <label>Tipo {{ form.tipo }}</label>
     <label id="wrap-campania" style="display:none;"># Campaña {{ form.campania }}</label>
+
+    <label>Descripción {{ form.descripcion }}</label>   <!-- NUEVO -->
+
     <label>Valor {{ form.valor }}</label>
     <label>Pagado {{ form.pagado }}</label>
     <div class="row">
@@ -25,6 +28,7 @@
 {% block extra_js %}
 <script>
 (function(){
+  const form = document.getElementById("tx-form");
   const tipo = document.getElementById("id_tipo");
   const campWrap = document.getElementById("wrap-campania");
   const camp = document.getElementById("id_campania");
@@ -32,8 +36,19 @@
   const fp = document.getElementById("id_fecha_pago");
   const hp = document.getElementById("id_hora_pago");
 
+  function pad(n){ return n < 10 ? "0"+n : n; }
+  function nowLocalDate(){  // YYYY-MM-DD
+    const d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+  }
+  function nowLocalTime(){  // HH:MM
+    const d = new Date();
+    return pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
   function toggleCampania(){
-    if (tipo && tipo.value === "NAT"){
+    if (!tipo) return;
+    if (tipo.value === "NAT"){
       campWrap.style.display = "";
       if (camp) camp.required = true;
     } else {
@@ -41,14 +56,46 @@
       if (camp){ camp.required = false; camp.value = ""; }
     }
   }
+
   function togglePago(){
-    const on = chk && chk.checked;
+    if (!chk) return;
+    const on = chk.checked;
     if (fp) fp.disabled = !on;
     if (hp) hp.disabled = !on;
+
+    if (on){
+      // Autollenar actual si están vacíos (editable por el usuario)
+      if (fp && !fp.value) fp.value = nowLocalDate();
+      if (hp && !hp.value) hp.value = nowLocalTime();
+    } else {
+      // Si desmarcan, limpiar pero dejar deshabilitado
+      if (fp) fp.value = "";
+      if (hp) hp.value = "";
+    }
   }
 
-  if (tipo){ tipo.addEventListener("change", toggleCampania); toggleCampania(); }
-  if (chk){ chk.addEventListener("change", togglePago); togglePago(); }
+  // Confirmación al enviar si está pagado
+  function confirmPaidSubmit(e){
+    if (chk && chk.checked){
+      const fecha = fp ? fp.value : "";
+      const hora  = hp ? hp.value : "";
+      const msg = `Vas a marcar esta transacción como PAGADA.\nFecha: ${fecha || '(hoy)'}  Hora: ${hora || '(ahora)'}\n\n¿Confirmas el pago?`;
+      if (!confirm(msg)){
+        e.preventDefault();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (tipo){ tipo.addEventListener("change", toggleCampania); }
+  if (chk){ chk.addEventListener("change", togglePago); }
+
+  // Inicializaciones por si se edita una existente
+  toggleCampania();
+  togglePago();
+
+  if (form){ form.addEventListener("submit", confirmPaidSubmit); }
 })();
 </script>
 {% endblock %}

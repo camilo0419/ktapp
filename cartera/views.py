@@ -1,13 +1,12 @@
-# cartera/views.py
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.db.models import Sum, Q
-from .models import Cliente, Transaccion
-from .forms import ClienteForm, TransaccionForm
+from .models import Cliente, Transaccion, Abono
+from .forms import ClienteForm, TransaccionForm, AbonoForm
 from .analytics import track
 
 class ClienteListView(LoginRequiredMixin, ListView):
@@ -25,9 +24,7 @@ class ClienteListView(LoginRequiredMixin, ListView):
 
     def get(self, request, *args, **kwargs):
         resp = super().get(request, *args, **kwargs)
-        track(request,
-              nombre="clientes_list",
-              categoria="view",
+        track(request, "clientes_list", "view",
               etiqueta=f"page={self.request.GET.get('page','1')}",
               extras={"q": self.request.GET.get("q", "")})
         return resp
@@ -69,12 +66,14 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         obj = self.object
-        tx = obj.transacciones.all().order_by("-creado")
-        # KPIs rápidos para analytics y dashboard
-        ctx["total_pendiente"] = tx.filter(pagado=False).aggregate(t=Sum("valor"))["t"] or 0
+        tx = (obj.transacciones
+              .select_related("cliente")
+              .prefetch_related("abonos")
+              .order_by("-creado"))
+        ctx["tx_list"] = tx
+        ctx["total_pendiente"] = obj.saldo_pendiente
         ctx["total_pagado"] = tx.filter(pagado=True).aggregate(t=Sum("valor"))["t"] or 0
         ctx["tx_count"] = tx.count()
-        ctx["tx_list"] = tx
         return ctx
 
     def get(self, request, *args, **kwargs):
@@ -82,10 +81,7 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
         obj = self.object
         track(request, "cliente_detail", "view",
               etiqueta=f"cliente_id={obj.id}",
-              extras={
-                  "saldo_pend": obj.saldo_pendiente,
-                  "tx_total": obj.transacciones.count(),
-              })
+              extras={"saldo_pend": obj.saldo_pendiente, "tx_total": obj.transacciones.count()})
         return resp
 
 
@@ -108,11 +104,7 @@ class TransaccionCreateView(LoginRequiredMixin, CreateView):
         resp = super().form_valid(form)
         track(self.request, "tx_create", "action",
               etiqueta=f"cliente_id={self.object.cliente_id}",
-              extras={
-                  "tipo": self.object.tipo,
-                  "valor": float(self.object.valor),
-                  "pagado": self.object.pagado,
-              })
+              extras={"tipo": self.object.tipo, "valor": float(self.object.valor), "pagado": self.object.pagado})
         messages.success(self.request, "Transacción creada.")
         return resp
 
@@ -129,11 +121,7 @@ class TransaccionUpdateView(LoginRequiredMixin, UpdateView):
         resp = super().form_valid(form)
         track(self.request, "tx_update", "action",
               etiqueta=f"tx_id={self.object.id}",
-              extras={
-                  "tipo": self.object.tipo,
-                  "valor": float(self.object.valor),
-                  "pagado": self.object.pagado,
-              })
+              extras={"tipo": self.object.tipo, "valor": float(self.object.valor), "pagado": self.object.pagado})
         messages.success(self.request, "Transacción actualizada.")
         return resp
 
@@ -148,3 +136,45 @@ def transaccion_marcar_pagado(request, pk):
           extras={"cliente_id": tx.cliente_id, "valor": float(tx.valor)})
     messages.success(request, "Transacción marcada como pagada.")
     return redirect("cartera:clientes_detail", pk=tx.cliente_id)
+
+
+# -------- ABONOS --------
+
+class AbonoCreateView(LoginRequiredMixin, CreateView):
+    model = Abono
+    form_class = AbonoForm
+    template_name = "cartera/abono_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.tx = get_object_or_404(Transaccion, pk=kwargs["tx_id"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["transaccion"] = self.tx
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.transaccion = self.tx
+        resp = super().form_valid(form)
+        track(self.request, "abono_create", "action",
+              etiqueta=f"tx_id={self.tx.id}",
+              extras={"valor": float(self.object.valor), "saldo_post": self.tx.saldo_actual})
+        messages.success(self.request, "Abono registrado.")
+        return resp
+
+    def get_success_url(self):
+        return reverse_lazy("cartera:clientes_detail", args=[self.tx.cliente_id])
+
+
+@login_required
+def abono_delete(request, pk):
+    abono = get_object_or_404(Abono, pk=pk)
+    cliente_id = abono.transaccion.cliente_id
+    tx_id = abono.transaccion_id
+    valor = float(abono.valor)
+    abono.delete()
+    track(request, "abono_delete", "action",
+          etiqueta=f"tx_id={tx_id}", extras={"valor": valor})
+    messages.success(request, "Abono eliminado.")
+    return redirect("cartera:clientes_detail", pk=cliente_id)

@@ -1,4 +1,3 @@
-# cartera/urls.py
 from django.urls import path
 from . import views
 
@@ -13,4 +12,8 @@ urlpatterns = [
     path("tx/nueva/", views.TransaccionCreateView.as_view(), name="tx_create"),
     path("tx/<int:pk>/editar/", views.TransaccionUpdateView.as_view(), name="tx_update"),
     path("tx/<int:pk>/pagada/", views.transaccion_marcar_pagado, name="tx_pagada"),
+
+    # Abonos
+    path("tx/<int:tx_id>/abono/nuevo/", views.AbonoCreateView.as_view(), name="abono_create"),
+    path("abono/<int:pk>/eliminar/", views.abono_delete, name="abono_delete"),
 ]

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Cliente, Transaccion, EventoAnalitica
+from .models import Cliente, Transaccion, Abono, EventoAnalitica
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
@@ -9,9 +9,16 @@ class ClienteAdmin(admin.ModelAdmin):
 
 @admin.register(Transaccion)
 class TransaccionAdmin(admin.ModelAdmin):
-    list_display = ("id", "cliente", "tipo", "campania", "valor", "pagado", "fecha_pago", "hora_pago", "creado")
+    list_display = ("id", "cliente", "tipo", "campania", "descripcion", "valor",
+                    "pagado", "fecha_pago", "hora_pago", "creado")
     list_filter = ("tipo", "pagado")
-    search_fields = ("cliente__nombre", "campania", "notas")
+    search_fields = ("cliente__nombre", "campania", "descripcion", "notas")
+
+@admin.register(Abono)
+class AbonoAdmin(admin.ModelAdmin):
+    list_display = ("id", "transaccion", "valor", "metodo", "fecha", "hora", "creado")
+    list_filter = ("metodo", "fecha")
+    search_fields = ("transaccion__cliente__nombre", "notas")
 
 @admin.register(EventoAnalitica)
 class EventoAnaliticaAdmin(admin.ModelAdmin):

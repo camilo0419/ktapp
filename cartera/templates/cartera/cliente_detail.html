@@ -1,36 +1,104 @@
 {% extends "base.html" %}
-{% block title %}Cliente{% endblock %}
+{% load currency %}
+{% block title %}{{ obj.nombre }} - KtApp{% endblock %}
 {% block content %}
-<div class="card">
-  <h2 style="margin-top:0">{{ obj.nombre }}</h2>
-  <p><small>{{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}</small></p>
-  <div class="row">
-    <a class="btn" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
-    <a class="btn alt" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h2 style="margin-top:0">{{ obj.nombre }}</h2>
+    <p><small>{{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}</small></p>
+    <p>Saldo pendiente total: <strong>{{ total_pendiente|cop }}</strong></p>
+    <div class="row">
+      <a class="btn" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
+      <a class="btn alt" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Resumen</h3>
+    <p>Pendiente: <strong>{{ total_pendiente|cop }}</strong></p>
+    <p>Pagado (monto facturado): <strong>{{ total_pagado|cop }}</strong></p>
+    <p>Total transacciones: <strong>{{ tx_count }}</strong></p>
   </div>
 </div>
+
 <div class="card" style="margin-top:12px;">
   <table>
-    <thead><tr><th>Fecha</th><th>Tipo</th><th>Campaña</th><th>Valor</th><th>Estado</th><th>Pago</th><th></th></tr></thead>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Campaña</th>
+        <th>Descripción</th>
+        <th class="right">Valor</th>
+        <th class="right">Abonado</th>
+        <th class="right">Saldo</th>
+        <th>Estado</th>
+        <th>Pago</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody>
-    {% for t in tx_list %}
+      {% for t in tx_list %}
       <tr>
         <td>{{ t.creado|date:"Y-m-d H:i" }}</td>
         <td>{{ t.get_tipo_display }}</td>
         <td>{{ t.campania }}</td>
-        <td>${{ t.valor|floatformat:0 }}</td>
-        <td>{% if t.pagado %}Pagado{% else %}Pendiente{% endif %}</td>
-        <td>{% if t.pagado %}{{ t.fecha_pago }} {{ t.hora_pago|time:"H:i" }}{% endif %}</td>
+        <td>{{ t.descripcion }}</td>
+        <td class="right"><strong>{{ t.valor|cop }}</strong></td>
+        <td class="right">{{ t.total_abonado|floatformat:0|add:""|cut:"," }}</td>
+        <td class="right"><strong>{{ t.saldo_actual|floatformat:0|add:""|cut:"," }}</strong></td>
         <td>
+          {% if t.pagado %}
+            <span class="pill ok">Pagado</span>
+          {% else %}
+            <span class="pill warn">Pendiente</span>
+          {% endif %}
+        </td>
+        <td>{% if t.pagado %}{{ t.fecha_pago }} {{ t.hora_pago|time:"H:i" }}{% endif %}</td>
+        <td class="row">
           <a class="btn alt" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
           {% if not t.pagado %}
+            <a class="btn ok" href="{% url 'cartera:abono_create' t.id %}">➕ Abono</a>
             <a class="btn ok" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
           {% endif %}
         </td>
       </tr>
-    {% empty %}
-      <tr><td colspan="7">Sin transacciones.</td></tr>
-    {% endfor %}
+
+      {% if t.abonos.all %}
+      <tr>
+        <td colspan="10">
+          <div class="card" style="background:#151515;">
+            <strong>Abonos</strong>
+            <table style="margin-top:8px;">
+              <thead>
+                <tr>
+                  <th>Fecha</th><th>Hora</th><th>Método</th><th class="right">Valor</th><th>Notas</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for a in t.abonos.all %}
+                <tr>
+                  <td>{{ a.fecha }}</td>
+                  <td>{{ a.hora|time:"H:i" }}</td>
+                  <td>{{ a.get_metodo_display }}</td>
+                  <td class="right">{{ a.valor|floatformat:0|add:""|cut:"," }}</td>
+                  <td>{{ a.notas }}</td>
+                  <td><a class="btn alt" href="{% url 'cartera:abono_delete' a.id %}">Eliminar</a></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><em>Sin abonos</em></td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      {% endif %}
+
+      {% empty %}
+      <tr><td colspan="10">Sin transacciones.</td></tr>
+      {% endfor %}
     </tbody>
   </table>
 </div>
