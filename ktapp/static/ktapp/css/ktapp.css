@@ -100,9 +100,7 @@ body{
   display:grid; gap:8px; padding:12px; background:#fff; border-radius:16px;
   border:1px solid rgba(0,0,0,.06); box-shadow: var(--shadow);
 }
-.list-row{
-  display:flex; align-items:center; gap:10px;
-}
+.list-row{ display:flex; align-items:center; gap:10px; }
 .list-title{ font-weight:600; }
 .list-meta{ color:var(--muted); font-size:.92rem; }
 
@@ -111,12 +109,8 @@ body{
   display:grid; gap:12px;
   grid-template-columns: 1fr;
 }
-@media (min-width: 720px){
-  .cards{ grid-template-columns: repeat(2, 1fr); }
-}
-@media (min-width: 1024px){
-  .cards{ grid-template-columns: repeat(3, 1fr); }
-}
+@media (min-width: 720px){ .cards{ grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px){ .cards{ grid-template-columns: repeat(3, 1fr); } }
 
 /* Chips/Estados */
 .chip{ display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:999px; font-weight:600; }
@@ -124,21 +118,50 @@ body{
 .chip-warn{ background: #fff2e5; color:#8a4000; border:1px solid #ffd8b2; }
 .chip-pend{ background: #f3f0ec; color:#5a4636; border:1px solid #e5ddd6; }
 
+/* Tabla con wrapper (mejor para que no se corten botones) */
+.table-wrap{
+  border-radius:16px;
+  overflow:hidden;                 /* el wrapper maneja el recorte suave */
+  box-shadow: var(--shadow);
+  border:1px solid rgba(0,0,0,.06);
+  background:#fff;
+}
 .table{
   width:100%;
   border-collapse: separate;
   border-spacing:0;
   background:#fff;
-  border-radius:16px;
-  /* overflow:hidden;  ← quítalo o cámbialo a visible */
-  overflow: visible;
-  box-shadow: var(--shadow);
-  border:1px solid rgba(0,0,0,.06);
+  border-radius:0;                 /* radios del wrapper */
+  box-shadow:none;                 /* sombra del wrapper */
+  border:0;
+  overflow:visible;                /* que no recorte contenido interno */
 }
+.table th, .table td{ padding:12px 14px; text-align:left; }
+.table thead th{ background: var(--hueso); }
+.table tbody tr + tr td{ border-top:1px solid rgba(0,0,0,.06); }
 
-/* Asegura que la columna de acciones no rompa línea y quede a la derecha */
+/* Última columna (acciones) */
 .table th:last-child,
 .table td:last-child{
   text-align: right;
   white-space: nowrap;
 }
+
+/* Botones compactos dentro de tablas */
+.actions-inline .btn{
+  height:36px;
+  padding:0 12px;
+  border-radius:12px;
+}
+
+/* Utilidades */
+.mt-1{ margin-top:8px } .mt-2{ margin-top:12px } .mt-3{ margin-top:18px }
+.mb-1{ margin-bottom:8px } .mb-2{ margin-bottom:12px } .mb-3{ margin-bottom:18px }
+.gap-1{ gap:6px } .gap-2{ gap:10px } .gap-3{ gap:14px }
+.flex{ display:flex } .items-center{ align-items:center } .justify-between{ justify-content:space-between }
+.round{ border-radius: var(--radius) }
+.center{ text-align:center }
+
+/* Enlaces */
+a{ color: var(--oxido); text-decoration: none; }
+a:hover{ text-decoration: underline; }

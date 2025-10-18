@@ -7,7 +7,26 @@ class ClienteForm(forms.ModelForm):
     class Meta:
         model = Cliente
         fields = ["nombre", "telefono", "correo", "activo"]
-
+        widgets = {
+            "nombre": forms.TextInput(attrs={
+                "class": "input",
+                "placeholder": "Razón social o nombre",
+                "autocomplete": "name",
+            }),
+            "telefono": forms.TextInput(attrs={
+                "class": "input",
+                "placeholder": "+57 300 000 0000",
+                "inputmode": "tel",
+                "autocomplete": "tel",
+            }),
+            "correo": forms.EmailInput(attrs={
+                "class": "input",
+                "placeholder": "correo@dominio.com",
+                "inputmode": "email",
+                "autocomplete": "email",
+            }),
+            "activo": forms.CheckboxInput(),
+        }
 
 class TransaccionForm(forms.ModelForm):
     class Meta:
@@ -63,3 +82,5 @@ class AbonoForm(forms.ModelForm):
         if valor - restante > 1e-6:
             self.add_error("valor", f"El abono ({valor:.0f}) excede el saldo ({restante:.0f}).")
         return cleaned
+
+

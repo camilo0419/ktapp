@@ -1,105 +1,144 @@
 {% extends "base.html" %}
 {% load currency %}
+
 {% block title %}{{ obj.nombre }} - KtApp{% endblock %}
+
+{# Botones en la barra superior (header pegajoso) #}
+{% block top_actions %}
+  <a class="btn btn-outline" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
+  <a class="btn btn-cobre" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
+{% endblock %}
+
 {% block content %}
 
-<div class="grid cols-2">
+<!-- ======= Encabezado del cliente ======= -->
+<div class="cards mb-2">
   <div class="card">
-    <h2 style="margin-top:0">{{ obj.nombre }}</h2>
-    <p><small>{{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}</small></p>
-    <p>Saldo pendiente total: <strong>{{ total_pendiente|cop }}</strong></p>
-    <div class="row">
-      <a class="btn" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
-      <a class="btn alt" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
+    <div class="card-body">
+      <h2 class="card-title" style="margin-top:0">{{ obj.nombre }}</h2>
+      <p>
+        <small>
+          {{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}
+        </small>
+      </p>
+      <p>Saldo pendiente total: <strong>{{ total_pendiente|cop }}</strong></p>
+
+      <div class="flex items-center gap-2 mt-2" style="flex-wrap:wrap">
+        <a class="btn btn-cobre" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
+        <a class="btn btn-outline" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
+      </div>
     </div>
   </div>
 
   <div class="card">
-    <h3 style="margin-top:0">Resumen</h3>
-    <p>Pendiente: <strong>{{ total_pendiente|cop }}</strong></p>
-    <p>Pagado (monto facturado): <strong>{{ total_pagado|cop }}</strong></p>
-    <p>Total transacciones: <strong>{{ tx_count }}</strong></p>
+    <div class="card-body">
+      <h3 class="card-title" style="margin-top:0">Resumen</h3>
+      <p>Pendiente: <strong>{{ total_pendiente|cop }}</strong></p>
+      <p>Pagado (monto facturado): <strong>{{ total_pagado|cop }}</strong></p>
+      <p>Total transacciones: <strong>{{ tx_count }}</strong></p>
+    </div>
   </div>
 </div>
 
-<div class="card" style="margin-top:12px;">
-  <table>
-    <thead>
-      <tr>
-        <th>Fecha</th>
-        <th>Tipo</th>
-        <th>Campaña</th>
-        <th>Descripción</th>
-        <th class="right">Valor</th>
-        <th class="right">Abonado</th>
-        <th class="right">Saldo</th>
-        <th>Estado</th>
-        <th>Pago</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for t in tx_list %}
-      <tr>
-        <td>{{ t.creado|date:"Y-m-d H:i" }}</td>
-        <td>{{ t.get_tipo_display }}</td>
-        <td>{{ t.campania }}</td>
-        <td>{{ t.descripcion }}</td>
-        <td class="right"><strong>{{ t.valor|cop }}</strong></td>
-        <td class="right">{{ t.total_abonado|floatformat:0|add:""|cut:"," }}</td>
-        <td class="right"><strong>{{ t.saldo_actual|floatformat:0|add:""|cut:"," }}</strong></td>
-        <td>
-          {% if t.pagado %}
-            <span class="pill ok">Pagado</span>
-          {% else %}
-            <span class="pill warn">Pendiente</span>
-          {% endif %}
-        </td>
-        <td>{% if t.pagado %}{{ t.fecha_pago }} {{ t.hora_pago|time:"H:i" }}{% endif %}</td>
-        <td class="row">
-          <a class="btn alt" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
-          {% if not t.pagado %}
-            <a class="btn ok" href="{% url 'cartera:abono_create' t.id %}">➕ Abono</a>
-            <a class="btn ok" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
-          {% endif %}
-        </td>
-      </tr>
+<!-- ======= Transacciones ======= -->
+<div class="card">
+  <div class="card-body">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Campaña</th>
+            <th>Descripción</th>
+            <th style="text-align:right">Valor</th>
+            <th style="text-align:right">Abonado</th>
+            <th style="text-align:right">Saldo</th>
+            <th>Estado</th>
+            <th>Pago</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tx_list %}
+          <tr>
+            <td>{{ t.creado|date:"Y-m-d H:i" }}</td>
+            <td>{{ t.get_tipo_display }}</td>
+            <td>{{ t.campania }}</td>
+            <td>{{ t.descripcion }}</td>
+            <td style="text-align:right"><strong>{{ t.valor|cop }}</strong></td>
+            <td style="text-align:right">{{ t.total_abonado|floatformat:0|add:""|cut:"," }}</td>
+            <td style="text-align:right"><strong>{{ t.saldo_actual|floatformat:0|add:""|cut:"," }}</strong></td>
+            <td>
+              {% if t.pagado %}
+                <span class="chip chip-ok">Pagado</span>
+              {% else %}
+                <span class="chip chip-pend">Pendiente</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if t.pagado %}
+                {{ t.fecha_pago }} {{ t.hora_pago|time:"H:i" }}
+              {% endif %}
+            </td>
+            <td class="actions-inline">
+              <a class="btn btn-outline" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
+              {% if not t.pagado %}
+                <a class="btn btn-cobre" href="{% url 'cartera:abono_create' t.id %}">➕ Abono</a>
+                <a class="btn btn-oxido" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
+              {% endif %}
+            </td>
+          </tr>
 
-      {% if t.abonos.all %}
-      <tr>
-        <td colspan="10">
-          <div class="card" style="background:#151515;">
-            <strong>Abonos</strong>
-            <table style="margin-top:8px;">
-              <thead>
-                <tr>
-                  <th>Fecha</th><th>Hora</th><th>Método</th><th class="right">Valor</th><th>Notas</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for a in t.abonos.all %}
-                <tr>
-                  <td>{{ a.fecha }}</td>
-                  <td>{{ a.hora|time:"H:i" }}</td>
-                  <td>{{ a.get_metodo_display }}</td>
-                  <td class="right">{{ a.valor|floatformat:0|add:""|cut:"," }}</td>
-                  <td>{{ a.notas }}</td>
-                  <td><a class="btn alt" href="{% url 'cartera:abono_delete' a.id %}">Eliminar</a></td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="6"><em>Sin abonos</em></td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </td>
-      </tr>
-      {% endif %}
+          {% with abonos=t.abonos.all %}
+          {% if abonos %}
+          <tr>
+            <td colspan="10">
+              <div class="card round" style="background: var(--bg);">
+                <div class="card-body">
+                  <strong>Abonos</strong>
+                  <div class="table-wrap" style="margin-top:8px;">
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Hora</th>
+                          <th>Método</th>
+                          <th style="text-align:right">Valor</th>
+                          <th>Notas</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for a in abonos %}
+                        <tr>
+                          <td>{{ a.fecha }}</td>
+                          <td>{{ a.hora|time:"H:i" }}</td>
+                          <td>{{ a.get_metodo_display }}</td>
+                          <td style="text-align:right">{{ a.valor|floatformat:0|add:""|cut:"," }}</td>
+                          <td>{{ a.notas }}</td>
+                          <td class="actions-inline">
+                            <a class="btn btn-outline" href="{% url 'cartera:abono_delete' a.id %}">Eliminar</a>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% endwith %}
 
-      {% empty %}
-      <tr><td colspan="10">Sin transacciones.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          {% empty %}
+          <tr><td colspan="10" class="center">Sin transacciones.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
+
 {% endblock %}
