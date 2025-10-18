@@ -124,23 +124,21 @@ body{
 .chip-warn{ background: #fff2e5; color:#8a4000; border:1px solid #ffd8b2; }
 .chip-pend{ background: #f3f0ec; color:#5a4636; border:1px solid #e5ddd6; }
 
-/* Tabla compacta (si necesitas) */
 .table{
-  width:100%; border-collapse: separate; border-spacing:0; background:#fff; border-radius:16px; overflow:hidden;
-  box-shadow: var(--shadow); border:1px solid rgba(0,0,0,.06);
+  width:100%;
+  border-collapse: separate;
+  border-spacing:0;
+  background:#fff;
+  border-radius:16px;
+  /* overflow:hidden;  ← quítalo o cámbialo a visible */
+  overflow: visible;
+  box-shadow: var(--shadow);
+  border:1px solid rgba(0,0,0,.06);
 }
-.table th, .table td{ padding:12px 14px; text-align:left; }
-.table thead th{ background: var(--hueso); }
-.table tbody tr + tr td{ border-top:1px solid rgba(0,0,0,.06); }
 
-/* Utilidades */
-.mt-1{ margin-top:8px } .mt-2{ margin-top:12px } .mt-3{ margin-top:18px }
-.mb-1{ margin-bottom:8px } .mb-2{ margin-bottom:12px } .mb-3{ margin-bottom:18px }
-.gap-1{ gap:6px } .gap-2{ gap:10px } .gap-3{ gap:14px }
-.flex{ display:flex } .items-center{ align-items:center } .justify-between{ justify-content:space-between }
-.round{ border-radius: var(--radius) }
-.center{ text-align:center }
-
-/* Enlaces */
-a{ color: var(--oxido); text-decoration: none; }
-a:hover{ text-decoration: underline; }
+/* Asegura que la columna de acciones no rompa línea y quede a la derecha */
+.table th:last-child,
+.table td:last-child{
+  text-align: right;
+  white-space: nowrap;
+}
