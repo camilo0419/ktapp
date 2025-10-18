@@ -1,13 +1,20 @@
+# cartera/views.py
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
-from django.db.models import Sum, Q
+
+from django.db.models import Q, Sum, F, Value, DecimalField, ExpressionWrapper
+from django.db.models.functions import Coalesce
+
 from .models import Cliente, Transaccion, Abono
 from .forms import ClienteForm, TransaccionForm, AbonoForm
 from .analytics import track
+
+
+# ========= CLIENTES =========
 
 class ClienteListView(LoginRequiredMixin, ListView):
     model = Cliente
@@ -16,17 +23,47 @@ class ClienteListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        q = self.request.GET.get("q", "").strip()
+        q = (self.request.GET.get("q") or "").strip()
         qs = Cliente.objects.all()
+
         if q:
-            qs = qs.filter(Q(nombre__icontains=q) | Q(telefono__icontains=q) | Q(correo__icontains=q))
+            qs = qs.filter(
+                Q(nombre__icontains=q) |
+                Q(telefono__icontains=q) |
+                Q(correo__icontains=q)
+            )
+
+        # Sumamos por separado y luego restamos (sin anidar agregados)
+        qs = qs.annotate(
+            total_valor=Coalesce(
+                Sum("transacciones__valor", distinct=True),
+                Value(0),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ),
+            total_abonos=Coalesce(
+                Sum("transacciones__abonos__valor"),
+                Value(0),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ),
+        ).annotate(
+            # ¡OJO! Alias distinto a la propiedad del modelo
+            cartera_total=ExpressionWrapper(
+                F("total_valor") - F("total_abonos"),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+
         return qs.order_by("nombre")
 
     def get(self, request, *args, **kwargs):
         resp = super().get(request, *args, **kwargs)
-        track(request, "clientes_list", "view",
-              etiqueta=f"page={self.request.GET.get('page','1')}",
-              extras={"q": self.request.GET.get("q", "")})
+        track(
+            request,
+            nombre="clientes_list",
+            categoria="view",
+            etiqueta=f"page={self.request.GET.get('page','1')}",
+            extras={"q": self.request.GET.get("q", "")},
+        )
         return resp
 
 
@@ -39,7 +76,8 @@ class ClienteCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         resp = super().form_valid(form)
         track(self.request, "cliente_create", "action",
-              etiqueta=f"cliente_id={self.object.id}", extras={"nombre": self.object.nombre})
+              etiqueta=f"cliente_id={self.object.id}",
+              extras={"nombre": self.object.nombre})
         messages.success(self.request, "Cliente creado correctamente.")
         return resp
 
@@ -53,7 +91,8 @@ class ClienteUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         resp = super().form_valid(form)
         track(self.request, "cliente_update", "action",
-              etiqueta=f"cliente_id={self.object.id}", extras={"activo": self.object.activo})
+              etiqueta=f"cliente_id={self.object.id}",
+              extras={"activo": self.object.activo})
         messages.success(self.request, "Cliente actualizado.")
         return resp
 
@@ -65,11 +104,15 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        obj = self.object
-        tx = (obj.transacciones
-              .select_related("cliente")
-              .prefetch_related("abonos")
-              .order_by("-creado"))
+        obj: Cliente = self.object
+
+        tx = (
+            obj.transacciones
+            .select_related("cliente")
+            .prefetch_related("abonos")
+            .order_by("-creado")
+        )
+
         ctx["tx_list"] = tx
         ctx["total_pendiente"] = obj.saldo_pendiente
         ctx["total_pagado"] = tx.filter(pagado=True).aggregate(t=Sum("valor"))["t"] or 0
@@ -78,12 +121,21 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
 
     def get(self, request, *args, **kwargs):
         resp = super().get(request, *args, **kwargs)
-        obj = self.object
-        track(request, "cliente_detail", "view",
-              etiqueta=f"cliente_id={obj.id}",
-              extras={"saldo_pend": obj.saldo_pendiente, "tx_total": obj.transacciones.count()})
+        obj: Cliente = self.object
+        track(
+            request,
+            "cliente_detail",
+            "view",
+            etiqueta=f"cliente_id={obj.id}",
+            extras={
+                "saldo_pend": obj.saldo_pendiente,
+                "tx_total": obj.transacciones.count(),
+            },
+        )
         return resp
 
+
+# ========= TRANSACCIONES =========
 
 class TransaccionCreateView(LoginRequiredMixin, CreateView):
     model = Transaccion
@@ -102,9 +154,15 @@ class TransaccionCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         resp = super().form_valid(form)
-        track(self.request, "tx_create", "action",
-              etiqueta=f"cliente_id={self.object.cliente_id}",
-              extras={"tipo": self.object.tipo, "valor": float(self.object.valor), "pagado": self.object.pagado})
+        track(
+            self.request, "tx_create", "action",
+            etiqueta=f"cliente_id={self.object.cliente_id}",
+            extras={
+                "tipo": self.object.tipo,
+                "valor": float(self.object.valor),
+                "pagado": self.object.pagado,
+            },
+        )
         messages.success(self.request, "Transacción creada.")
         return resp
 
@@ -119,9 +177,15 @@ class TransaccionUpdateView(LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         resp = super().form_valid(form)
-        track(self.request, "tx_update", "action",
-              etiqueta=f"tx_id={self.object.id}",
-              extras={"tipo": self.object.tipo, "valor": float(self.object.valor), "pagado": self.object.pagado})
+        track(
+            self.request, "tx_update", "action",
+            etiqueta=f"tx_id={self.object.id}",
+            extras={
+                "tipo": self.object.tipo,
+                "valor": float(self.object.valor),
+                "pagado": self.object.pagado,
+            },
+        )
         messages.success(self.request, "Transacción actualizada.")
         return resp
 
@@ -131,14 +195,16 @@ def transaccion_marcar_pagado(request, pk):
     tx = get_object_or_404(Transaccion, pk=pk)
     tx.marcar_pagado_ahora()
     tx.save()
-    track(request, "tx_pagada", "action",
-          etiqueta=f"tx_id={tx.id}",
-          extras={"cliente_id": tx.cliente_id, "valor": float(tx.valor)})
+    track(
+        request, "tx_pagada", "action",
+        etiqueta=f"tx_id={tx.id}",
+        extras={"cliente_id": tx.cliente_id, "valor": float(tx.valor)},
+    )
     messages.success(request, "Transacción marcada como pagada.")
     return redirect("cartera:clientes_detail", pk=tx.cliente_id)
 
 
-# -------- ABONOS --------
+# ========= ABONOS =========
 
 class AbonoCreateView(LoginRequiredMixin, CreateView):
     model = Abono
@@ -157,9 +223,11 @@ class AbonoCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.transaccion = self.tx
         resp = super().form_valid(form)
-        track(self.request, "abono_create", "action",
-              etiqueta=f"tx_id={self.tx.id}",
-              extras={"valor": float(self.object.valor), "saldo_post": self.tx.saldo_actual})
+        track(
+            self.request, "abono_create", "action",
+            etiqueta=f"tx_id={self.tx.id}",
+            extras={"valor": float(self.object.valor), "saldo_post": self.tx.saldo_actual},
+        )
         messages.success(self.request, "Abono registrado.")
         return resp
 
@@ -174,7 +242,10 @@ def abono_delete(request, pk):
     tx_id = abono.transaccion_id
     valor = float(abono.valor)
     abono.delete()
-    track(request, "abono_delete", "action",
-          etiqueta=f"tx_id={tx_id}", extras={"valor": valor})
+    track(
+        request, "abono_delete", "action",
+        etiqueta=f"tx_id={tx_id}",
+        extras={"valor": valor},
+    )
     messages.success(request, "Abono eliminado.")
     return redirect("cartera:clientes_detail", pk=cliente_id)
