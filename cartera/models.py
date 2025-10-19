@@ -1,13 +1,12 @@
 # cartera/models.py
+from decimal import Decimal
 from django.db import models
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MinValueValidator
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from django.db.models import Sum, Value, DecimalField
+from django.db.models import Sum, Value as V, DecimalField, F
 from django.db.models.functions import Coalesce
 
-
-# --- Helpers de tiempo para defaults serializables ---
 def current_local_date():
     return timezone.localdate()
 
@@ -22,117 +21,124 @@ class Cliente(models.Model):
     activo   = models.BooleanField(default=True)
     creado   = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ["nombre"]
-
     def __str__(self):
         return self.nombre
 
     @property
-    def saldo_pendiente(self):
-        """
-        Suma de (valor - total_abonado) para transacciones con saldo > 0.
-        Usa Decimal coherente para evitar 'mixed types'.
-        """
-        tx_vals = (
-            self.transacciones
-            .annotate(
-                total_abonos=Coalesce(
-                    Sum("abonos__valor"),
-                    Value(0),
-                    output_field=DecimalField(max_digits=12, decimal_places=2),
-                )
-            )
-            .values_list("valor", "total_abonos")
-        )
-        total = 0.0
-        for valor, total_abonos in tx_vals:
-            saldo_tx = float(valor) - float(total_abonos or 0)
-            if saldo_tx > 1e-6:
-                total += saldo_tx
+    def total_pendiente(self):
+        total = 0
+        for tx in self.transacciones.all().prefetch_related("items", "abonos"):
+            if not tx.pagado:
+                total += tx.saldo_actual
         return total
 
 
 class Transaccion(models.Model):
-    NATURA = "NAT"
-    ACCESORIOS = "ACC"
-    OTROS = "OTR"
+    NATURA      = "NAT"
+    ACCESORIOS  = "ACC"
+    OTROS       = "OTR"
     TIPOS = [
         (NATURA, "Natura"),
         (ACCESORIOS, "Accesorios"),
         (OTROS, "Otros"),
     ]
 
-    cliente = models.ForeignKey(Cliente, related_name="transacciones", on_delete=models.CASCADE)
-    tipo = models.CharField(max_length=3, choices=TIPOS)
-    campania = models.CharField(max_length=20, blank=True)
-    descripcion = models.CharField(max_length=200, blank=True)
+    cliente  = models.ForeignKey(Cliente, related_name="transacciones", on_delete=models.PROTECT)
+    fecha    = models.DateField(default=current_local_date)
+    hora     = models.TimeField(default=current_local_time)
+    tipo     = models.CharField(max_length=3, choices=TIPOS, default=OTROS)
+    campania = models.CharField(max_length=80, blank=True)
 
-    valor = models.DecimalField(
-        max_digits=10, decimal_places=2,
-        validators=[MinValueValidator(0), MaxValueValidator(10_000_000)]
-    )
+    pagado    = models.BooleanField(default=False)
+    pagado_en = models.DateTimeField(blank=True, null=True)
 
-    # Estado de pago (se recalcula con abonos)
-    pagado = models.BooleanField(default=False)
-    fecha_pago = models.DateField(blank=True, null=True)
-    hora_pago = models.TimeField(blank=True, null=True)
-
-    notas = models.TextField(blank=True)
     creado = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-creado"]
 
     def __str__(self):
-        return f"TX #{self.pk} - {self.cliente.nombre} - {self.get_tipo_display()}"
+        return f"TX #{self.pk} - {self.cliente} - {self.fecha}"
+
+    # ----- Totales con % de descuento en ítems -----
+    @property
+    def subtotal_items(self) -> float:
+        dec = DecimalField(max_digits=14, decimal_places=2)
+        zero = V(Decimal("0.00"), output_field=dec)
+        return float(self.items.aggregate(
+            s=Coalesce(Sum(F("precio_unitario") * F("cantidad"), output_field=dec), zero)
+        )["s"] or Decimal("0.00"))
+
+    @property
+    def total_lineas(self) -> float:
+        # suma de cada línea con descuento % aplicado
+        total = 0.0
+        for it in self.items.all():
+            total += it.total_linea
+        return total
+
+    @property
+    def total_descuento_items(self) -> float:
+        # subtotal - total_lineas
+        return max(self.subtotal_items - self.total_lineas, 0.0)
+
+    @property
+    def valor_a_pagar(self) -> float:
+        # el que suma a cartera si no está pagado
+        return max(self.total_lineas, 0.0)
+
+    @property
+    def total_abonos(self) -> float:
+        dec = DecimalField(max_digits=14, decimal_places=2)
+        zero = V(Decimal("0.00"), output_field=dec)
+        return float(self.abonos.aggregate(
+            s=Coalesce(Sum("valor", output_field=dec), zero)
+        )["s"] or Decimal("0.00"))
+
+    @property
+    def saldo_actual(self) -> float:
+        return max(self.valor_a_pagar - self.total_abonos, 0.0)
 
     def clean(self):
-        if self.tipo == self.NATURA and not self.campania:
-            raise ValidationError({"campania": "La campaña es obligatoria para Natura."})
+        if self.tipo == self.NATURA and not (self.campania or "").strip():
+            raise ValidationError({"campania": "Para Natura debes indicar # Campaña."})
+
+    def save(self, *args, **kwargs):
+        if self.pagado and self.pagado_en is None:
+            self.pagado_en = timezone.now()
+        if not self.pagado:
+            self.pagado_en = None
+        super().save(*args, **kwargs)
+
+
+class TransaccionItem(models.Model):
+    DESCUENTOS = [(10, "10%"), (20, "20%"), (30, "30%")]
+
+    transaccion     = models.ForeignKey(Transaccion, related_name="items", on_delete=models.CASCADE)
+    producto        = models.CharField(max_length=200)
+    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    cantidad        = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)], default=1)
+    # % de descuento SOLO 10/20/30; si viene None, se interpreta como 0%
+    descuento       = models.PositiveSmallIntegerField(choices=DESCUENTOS, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Ítem de transacción"
+        verbose_name_plural = "Ítems de transacción"
+
+    def __str__(self):
+        return f"{self.producto} x {self.cantidad}"
 
     @property
-    def total_abonado(self):
-        agg = self.abonos.aggregate(
-            t=Coalesce(
-                Sum("valor"),
-                Value(0),
-                output_field=DecimalField(max_digits=12, decimal_places=2),
-            )
-        )
-        return float(agg["t"] or 0)
-
-    @property
-    def saldo_actual(self):
-        saldo = float(self.valor) - self.total_abonado
-        return max(saldo, 0.0)
-
-    def marcar_pagado_ahora(self):
-        self.pagado = True
-        now = timezone.localtime()
-        self.fecha_pago = self.fecha_pago or now.date()
-        self.hora_pago  = self.hora_pago  or now.time()
-
-    def recomputar_pagado(self, persist=True):
-        """
-        Si total_abonado >= valor -> pagado=True (y set fecha/hora si faltan).
-        Si no, pagado=False (y limpiamos fecha/hora).
-        """
-        if self.total_abonado + 1e-6 >= float(self.valor):
-            if not self.pagado:
-                self.marcar_pagado_ahora()
-        else:
-            self.pagado = False
-            self.fecha_pago = None
-            self.hora_pago = None
-        if persist:
-            self.save(update_fields=["pagado", "fecha_pago", "hora_pago"])
+    def total_linea(self) -> float:
+        base = float(self.precio_unitario) * float(self.cantidad)
+        pct  = (self.descuento or 0) / 100.0
+        return max(base * (1.0 - pct), 0.0)
 
 
 class Abono(models.Model):
     EFECTIVO = "EFE"
     TRANSFER = "TRF"
-    OTRO = "OTR"
+    OTRO     = "OTR"
     METODOS = [
         (EFECTIVO, "Efectivo"),
         (TRANSFER, "Transferencia"),
@@ -140,60 +146,15 @@ class Abono(models.Model):
     ]
 
     transaccion = models.ForeignKey(Transaccion, related_name="abonos", on_delete=models.CASCADE)
-    valor = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    metodo = models.CharField(max_length=3, choices=METODOS, default=TRANSFER)
-    fecha = models.DateField(default=current_local_date)
-    hora = models.TimeField(default=current_local_time)
-    notas = models.CharField(max_length=200, blank=True)
-    creado = models.DateTimeField(auto_now_add=True)
+    valor       = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    metodo      = models.CharField(max_length=3, choices=METODOS, default=TRANSFER)
+    fecha       = models.DateField(default=current_local_date)
+    hora        = models.TimeField(default=current_local_time)
+    notas       = models.CharField(max_length=200, blank=True)
+    creado      = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-creado"]
 
     def __str__(self):
-        return f"Abono #{self.pk} TX {self.transaccion_id} - {self.valor}"
-
-    def clean(self):
-        if float(self.valor) <= 0:
-            raise ValidationError({"valor": "El abono debe ser mayor que 0."})
-        # Evitar sobrepago
-        restante = self.transaccion.saldo_actual
-        if float(self.valor) - restante > 1e-6:
-            raise ValidationError({"valor": f"El abono ({self.valor}) excede el saldo ({restante:.0f})."})
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        # Recalcular estado de la transacción tras guardar
-        self.transaccion.recomputar_pagado(persist=True)
-
-    def delete(self, *args, **kwargs):
-        tx = self.transaccion
-        super().delete(*args, **kwargs)
-        # Recalcular estado tras borrar
-        tx.recomputar_pagado(persist=True)
-
-
-class EventoAnalitica(models.Model):
-    """
-    Registro de eventos de servidor (pageviews, acciones de CRUD, filtros, etc.)
-    Pensado para dashboards internos.
-    """
-    ts = models.DateTimeField(auto_now_add=True)
-    nombre = models.CharField(max_length=80)        # 'clientes_list', 'tx_create', 'abono_create', etc.
-    categoria = models.CharField(max_length=40)     # 'view', 'action', 'error', ...
-    etiqueta = models.CharField(max_length=120, blank=True)
-    valor = models.FloatField(blank=True, null=True)
-    extras = models.JSONField(blank=True, null=True)
-    path = models.CharField(max_length=255, blank=True)
-    metodo = models.CharField(max_length=8, blank=True)
-    ip = models.GenericIPAddressField(blank=True, null=True)
-    user_agent = models.TextField(blank=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["ts"]),
-            models.Index(fields=["nombre", "categoria"]),
-        ]
-
-    def __str__(self):
-        return f"[{self.ts:%Y-%m-%d %H:%M}] {self.categoria}:{self.nombre} ({self.etiqueta})"
+        return f"Abono {self.valor:.0f} a TX #{self.transaccion_id}"

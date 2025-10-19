@@ -44,9 +44,19 @@
         <td>{{ t.creado|date:"Y-m-d H:i" }}</td>
         <td>{{ t.get_tipo_display }}</td>
         <td>{{ t.campania }}</td>
-        <td>{{ t.descripcion }}</td>
-        <td class="right"><strong>{{ t.valor|cop }}</strong></td>
-        <td class="right">{{ t.total_abonado|floatformat:0|add:""|cut:"," }}</td>
+        <td>
+          {% with prods=t.items.all %}
+            {% if prods %}
+              {% for it in prods %}
+                {{ it.producto }}{% if not forloop.last %}, {% endif %}
+              {% endfor %}
+            {% else %}
+              <em>—</em>
+            {% endif %}
+          {% endwith %}
+        </td>
+        <td class="right"><strong>{{ t.valor_a_pagar|cop }}</strong></td>
+        <td class="right">{{ t.total_abonos|floatformat:0|add:""|cut:"," }}</td>
         <td class="right"><strong>{{ t.saldo_actual|floatformat:0|add:""|cut:"," }}</strong></td>
         <td>
           {% if t.pagado %}
@@ -55,7 +65,7 @@
             <span class="pill warn">Pendiente</span>
           {% endif %}
         </td>
-        <td>{% if t.pagado %}{{ t.fecha_pago }} {{ t.hora_pago|time:"H:i" }}{% endif %}</td>
+        <td>{% if t.pagado_en %}{{ t.pagado_en|date:"Y-m-d H:i" }}{% endif %}</td>
         <td class="row">
           <a class="btn alt" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
           {% if not t.pagado %}

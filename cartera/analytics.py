@@ -1,37 +1,41 @@
 # cartera/analytics.py
-from .models import EventoAnalitica
+import logging
+from typing import Any, Dict, Optional
 
-def _client_ip(request):
-    """
-    Extrae la IP del cliente respetando posibles proxys.
-    """
-    xff = request.META.get("HTTP_X_FORWARDED_FOR")
-    if xff:
-        # Formato típico: "ip_real, proxy1, proxy2"
-        return xff.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR")
+logger = logging.getLogger(__name__)
 
-def track(request, nombre, categoria="view", etiqueta="", valor=None, extras=None):
+def track(
+    request,
+    nombre: str,
+    categoria: str,
+    etiqueta: str = "",
+    valor: Optional[float] = None,
+    extras: Optional[Dict[str, Any]] = None,
+) -> None:
     """
-    Registra un evento de analytics de servidor.
-    - nombre: string corto del evento (ej: 'clientes_list', 'tx_create')
-    - categoria: 'view' | 'action' | 'error' | lo que prefieras
-    - etiqueta: texto corto adicional (ej: 'cliente_id=12')
-    - valor: numérico opcional (para métricas)
-    - extras: dict con payload adicional (quedará en JSONField)
+    Registrador 'best-effort' que NO depende de modelos.
+    Es seguro en migraciones y en arranque temprano del proyecto.
     """
     try:
-        EventoAnalitica.objects.create(
-            nombre=nombre[:80],
-            categoria=categoria[:40] if categoria else "",
-            etiqueta=(etiqueta or "")[:120],
-            valor=valor,
-            extras=extras or {},
-            path=(getattr(request, "path", "") or "")[:255],
-            metodo=(getattr(request, "method", "") or "")[:8],
-            ip=_client_ip(request),
-            user_agent=(request.META.get("HTTP_USER_AGENT", "") or "")[:500],
-        )
+        data = {
+            "user": getattr(getattr(request, "user", None), "id", None),
+            "ip": _client_ip(request),
+            "nombre": nombre,
+            "categoria": categoria,
+            "etiqueta": etiqueta,
+            "valor": valor,
+            "extras": extras or {},
+        }
+        logger.info("[analytics] %s", data)
     except Exception:
-        # Nunca romper la UX por analytics
-        pass
+        logger.exception("[analytics] Falló el track() pero se ignora para no romper la app.")
+
+
+def _client_ip(request) -> Optional[str]:
+    try:
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+    except Exception:
+        return None

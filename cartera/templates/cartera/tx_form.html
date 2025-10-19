@@ -13,135 +13,164 @@
 
     <label>Tipo {{ form.tipo }}</label>
 
-    <!-- Campo # Campaña -->
-    <div id="campaniaWrap" style="display:none;">
+    <div id="campania-wrapper" style="display:none;">
       <label># Campaña {{ form.campania }}</label>
+      <small class="help">Visible solo si el tipo es "Natura".</small>
     </div>
 
-    <label>Descripción {{ form.descripcion }}</label>
-
-    <label>Valor {{ form.valor }}</label>
-
-    <!-- Checkbox Pagado moderno -->
-    <div class="checkbox-line">
-      {{ form.pagado }}
-      <label for="id_pagado">Pagado</label>
+    <div class="grid" style="gap:12px;margin-top:8px;">
+      <label>Fecha {{ form.fecha }}</label>
+      <!-- Hora oculta vía HiddenInput en el formulario -->
+      {{ form.hora }}
     </div>
 
-    <!-- Fecha/Hora de pago -->
-    <div id="pagoWrap" style="display:none;" class="row">
-      <label style="flex:1;min-width:220px;">Fecha de pago {{ form.fecha_pago }}</label>
-      <label style="flex:1;min-width:180px;">Hora de pago {{ form.hora_pago }}</label>
+    <hr>
+
+    {{ formset.management_form }}
+    <div id="items-container" style="display:grid;gap:8px;">
+      {% for f in formset.forms %}
+        {% if forloop.counter0 == 0 %}
+        <div class="item-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
+          <label>Producto {{ f.producto }}</label>
+          <label>Precio U. {{ f.precio_unitario }}</label>
+          <label>Cantidad {{ f.cantidad }}</label>
+          <label>Descuento % {{ f.descuento }}</label>
+          <div style="align-self:center;">
+            {% if f.instance.pk %}<label style="display:flex;align-items:center;gap:6px;">Eliminar {{ f.DELETE }}</label>{% endif %}
+          </div>
+          {% for h in f.hidden_fields %}{{ h }}{% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
     </div>
 
-    <label>Notas {{ form.notas }}</label>
+    <button type="button" id="add-item" class="btn">+ producto</button>
 
-    <div class="row">
-      <button class="btn" type="submit">Guardar</button>
-      <a class="btn alt" href="{% url 'cartera:clientes_detail' form.instance.cliente.id|default:request.GET.cliente %}">Cancelar</a>
+    <hr>
+
+    <!-- Totales en vivo -->
+    <div class="grid" style="gap:6px;">
+      <div><strong>Subtotal:</strong> $<span id="t-subtotal">0</span></div>
+      <div><strong>Total descuento:</strong> $<span id="t-descuento">0</span></div>
+      <div><strong>Valor a pagar:</strong> $<span id="t-pagar">0</span></div>
+    </div>
+
+    <div class="grid" style="gap:12px;margin-top:12px;">
+      <div class="checkbox-line" style="display:flex;align-items:center;gap:10px;">
+        {{ form.pagado }} <label for="id_pagado" style="margin:0;">Pagado</label>
+      </div>
+      <div style="font-size:12px;color:#666;">
+        Si marcas <b>Pagado</b>, se registrará fecha y hora automáticas.
+      </div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <button class="btn primary" type="submit">Guardar</button>
+      <a class="btn" href="javascript:history.back()">Cancelar</a>
     </div>
   </form>
 </div>
 
 <script>
-(function() {
-  const tipo = document.getElementById("id_tipo");
-  const campWrap = document.getElementById("campaniaWrap");
-  const campInput = document.getElementById("id_campania");
+(function(){
+  const NAT = "NAT";
+  const tipoSel = document.getElementById("id_tipo");
+  const campaniaWrap = document.getElementById("campania-wrapper");
 
-  const chkPagado = document.getElementById("id_pagado");
-  const pagoWrap = document.getElementById("pagoWrap");
-  const fechaPago = document.getElementById("id_fecha_pago");
-  const horaPago  = document.getElementById("id_hora_pago");
-
-  function isNaturaSelected() {
-    if (!tipo) return false;
-    const val = (tipo.value || "").toString().toLowerCase();
-    const txt = (tipo.options[tipo.selectedIndex]?.text || "").toLowerCase();
-    return val.includes("natura") || txt.includes("natura");
+  function toggleCampania(){
+    if (!tipoSel) return;
+    const v = tipoSel.value;
+    campaniaWrap.style.display = (v === NAT) ? "block" : "none";
+  }
+  if (tipoSel){
+    tipoSel.addEventListener("change", toggleCampania);
+    toggleCampania();
   }
 
-  function toggleCampania() {
-    if (isNaturaSelected()) {
-      campWrap.style.display = "block";
-    } else {
-      campWrap.style.display = "none";
-      if (campInput) campInput.value = "";
-    }
+  const addBtn = document.getElementById("add-item");
+  const container = document.getElementById("items-container");
+  const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
+
+  // Clonar SOLO la primera fila como plantilla
+  function emptyRowTemplate(){
+    const first = container.querySelector(".item-row");
+    const clone = first.cloneNode(true);
+    clone.querySelectorAll("input").forEach(inp => {
+      if (inp.type === "checkbox") { inp.checked = false; }
+      else { inp.value = ""; }
+    });
+    // Select de descuento: dejar sin seleccionar
+    const sel = clone.querySelector('select[name$="descuento"]');
+    if (sel) sel.selectedIndex = -1;
+    // quitar DELETE si existe en la fila base
+    const del = clone.querySelector('input[type="checkbox"][name$="DELETE"]');
+    if (del) del.closest("label").remove();
+    return clone;
   }
 
-  function pad2(n){ return String(n).padStart(2,"0"); }
-  function toDateInputValue(d) {
-    return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+  function replaceIndex(el, from, to){
+    if (el.name) el.name = el.name.replace(from, to);
+    if (el.id) el.id = el.id.replace(from, to);
+    if (el.htmlFor) el.htmlFor = el.htmlFor.replace(from, to);
   }
 
-  function togglePago() {
-    if (!chkPagado) return;
-    if (chkPagado.checked) {
-      pagoWrap.style.display = "flex";
-      const now = new Date();
-      if (fechaPago && !fechaPago.value) fechaPago.value = toDateInputValue(now);
-      if (horaPago  && !horaPago.value)  horaPago.value  = pad2(now.getHours())+":"+pad2(now.getMinutes());
-    } else {
-      pagoWrap.style.display = "none";
-      if (fechaPago) fechaPago.value = "";
-      if (horaPago)  horaPago.value  = "";
-    }
+  if (addBtn){
+    addBtn.addEventListener("click", function(){
+      const formCount = parseInt(totalForms.value, 10);
+      const newRow = emptyRowTemplate();
+      newRow.querySelectorAll("input,select,label").forEach(el => {
+        // 👇 FIX: regex correcta (una sola barra)
+        replaceIndex(el, /-\d+-/, `-${formCount}-`);
+        replaceIndex(el, /__prefix__/, formCount);
+      });
+      container.appendChild(newRow);
+      totalForms.value = formCount + 1;
+      bindRow(newRow);
+      calcTotals();
+    });
   }
 
-  if (tipo) tipo.addEventListener("change", toggleCampania);
-  if (chkPagado) chkPagado.addEventListener("change", togglePago);
+  // --------- Cálculo en vivo ---------
+  const fmtMoney = (n) => (isFinite(n) ? new Intl.NumberFormat('es-CO').format(Math.max(n,0).toFixed(0)) : "0");
 
-  // Estado inicial
-  toggleCampania();
-  togglePago();
+  function rowValues(row){
+    const p = parseFloat((row.querySelector('input[name$="precio_unitario"]')?.value || "0").replace(",", ".")) || 0;
+    const c = parseFloat((row.querySelector('input[name$="cantidad"]')?.value || "0").replace(",", ".")) || 0;
+    const d = parseInt(row.querySelector('select[name$="descuento"]')?.value || "0", 10) || 0; // 10|20|30
+    const base = p * c;
+    const total = base * (1 - (d/100));
+    return {base, total, desc: base - total};
+  }
+
+  function calcTotals(){
+    let sub = 0, desc = 0, pagar = 0;
+    container.querySelectorAll(".item-row").forEach(row => {
+      const v = rowValues(row);
+      sub += v.base;
+      desc += v.desc;
+      pagar += v.total;
+    });
+    document.getElementById("t-subtotal").textContent = fmtMoney(sub);
+    document.getElementById("t-descuento").textContent = fmtMoney(desc);
+    document.getElementById("t-pagar").textContent = fmtMoney(pagar);
+  }
+
+  function bindRow(row){
+    const inputs = row.querySelectorAll('input[name$="precio_unitario"], input[name$="cantidad"], select[name$="descuento"]');
+    inputs.forEach(el => el.addEventListener("input", calcTotals));
+    inputs.forEach(el => el.addEventListener("change", calcTotals));
+  }
+
+  // Bind inicial SOLO a la primera fila que pintamos
+  const firstRow = container.querySelector(".item-row");
+  if (firstRow) bindRow(firstRow);
+  calcTotals();
 })();
 </script>
 
 <style>
-/* === Estilos refinados para inputs === */
-input, select, textarea {
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 10px 12px;
-  width: 100%;
-  font-size: 0.95rem;
-  box-sizing: border-box;
-}
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: #C07A57;
-  box-shadow: 0 0 0 3px rgba(192,122,87,.18);
-}
-label {
-  display: block;
-  margin-top: 12px;
-  font-weight: 600;
-  color: #333;
-}
-.btn {
-  border-radius: 12px;
-}
-
-/* === Checkbox “Pagado” mejor alineado === */
-.checkbox-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.checkbox-line input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
-  accent-color: #C07A57;
-  cursor: pointer;
-}
-
-.checkbox-line label {
-  font-weight: 600;
-  color: #333;
-  cursor: pointer;
-}
+.input{max-width:100%;}
+.checkbox-line input[type="checkbox"]{ width:20px;height:20px;accent-color:#C07A57;cursor:pointer; }
+.checkbox-line label{ font-weight:600;color:#333;cursor:pointer; }
 </style>
 {% endblock %}
