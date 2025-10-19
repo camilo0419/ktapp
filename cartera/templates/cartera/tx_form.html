@@ -10,34 +10,49 @@
     {{ form.non_field_errors }}
 
     <label>Cliente {{ form.cliente }}</label>
+    {% if form.errors.cliente %}<small class="error">{{ form.errors.cliente.0 }}</small>{% endif %}
 
     <label>Tipo {{ form.tipo }}</label>
+    {% if form.errors.tipo %}<small class="error">{{ form.errors.tipo.0 }}</small>{% endif %}
 
     <div id="campania-wrapper" style="display:none;">
       <label># Campaña {{ form.campania }}</label>
-      <small class="help">Visible solo si el tipo es "Natura".</small>
+      {% if form.errors.campania %}<small class="error">{{ form.errors.campania.0 }}</small>{% else %}<small class="help">Visible solo si el tipo es "Natura".</small>{% endif %}
     </div>
 
     <div class="grid" style="gap:12px;margin-top:8px;">
       <label>Fecha {{ form.fecha }}</label>
-      <!-- Hora oculta vía HiddenInput en el formulario -->
-      {{ form.hora }}
+      {{ form.hora }} <!-- oculto por widget -->
+      {% if form.errors.fecha %}<small class="error">{{ form.errors.fecha.0 }}</small>{% endif %}
     </div>
 
     <hr>
 
     {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="error">{{ formset.non_form_errors }}</div>{% endif %}
+
     <div id="items-container" style="display:grid;gap:8px;">
+
+      {# En GET (no bound) mostramos solo una fila; en POST (bound) mostramos todas para ver errores #}
       {% for f in formset.forms %}
-        {% if forloop.counter0 == 0 %}
+        {% if formset.is_bound or forloop.first %}
         <div class="item-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
           <label>Producto {{ f.producto }}</label>
+          {% if f.errors.producto %}<small class="error">{{ f.errors.producto.0 }}</small>{% endif %}
+
           <label>Precio U. {{ f.precio_unitario }}</label>
+          {% if f.errors.precio_unitario %}<small class="error">{{ f.errors.precio_unitario.0 }}</small>{% endif %}
+
           <label>Cantidad {{ f.cantidad }}</label>
+          {% if f.errors.cantidad %}<small class="error">{{ f.errors.cantidad.0 }}</small>{% endif %}
+
           <label>Descuento % {{ f.descuento }}</label>
+          {% if f.errors.descuento %}<small class="error">{{ f.errors.descuento.0 }}</small>{% endif %}
+
           <div style="align-self:center;">
             {% if f.instance.pk %}<label style="display:flex;align-items:center;gap:6px;">Eliminar {{ f.DELETE }}</label>{% endif %}
           </div>
+
           {% for h in f.hidden_fields %}{{ h }}{% endfor %}
         </div>
         {% endif %}
@@ -91,20 +106,26 @@
   const container = document.getElementById("items-container");
   const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
 
-  // Clonar SOLO la primera fila como plantilla
   function emptyRowTemplate(){
     const first = container.querySelector(".item-row");
     const clone = first.cloneNode(true);
+
+    // limpiar valores de inputs
     clone.querySelectorAll("input").forEach(inp => {
       if (inp.type === "checkbox") { inp.checked = false; }
       else { inp.value = ""; }
     });
-    // Select de descuento: dejar sin seleccionar
+    // select descuento: opción vacía por defecto (—)
     const sel = clone.querySelector('select[name$="descuento"]');
-    if (sel) sel.selectedIndex = -1;
-    // quitar DELETE si existe en la fila base
+    if (sel) sel.value = "";
+
+    // quitar DELETE si está
     const del = clone.querySelector('input[type="checkbox"][name$="DELETE"]');
     if (del) del.closest("label").remove();
+
+    // quitar mensajes de error posibles
+    clone.querySelectorAll(".error").forEach(e => e.remove());
+
     return clone;
   }
 
@@ -119,7 +140,6 @@
       const formCount = parseInt(totalForms.value, 10);
       const newRow = emptyRowTemplate();
       newRow.querySelectorAll("input,select,label").forEach(el => {
-        // 👇 FIX: regex correcta (una sola barra)
         replaceIndex(el, /-\d+-/, `-${formCount}-`);
         replaceIndex(el, /__prefix__/, formCount);
       });
@@ -161,9 +181,8 @@
     inputs.forEach(el => el.addEventListener("change", calcTotals));
   }
 
-  // Bind inicial SOLO a la primera fila que pintamos
-  const firstRow = container.querySelector(".item-row");
-  if (firstRow) bindRow(firstRow);
+  // bind inicial a todas las filas renderizadas (en POST habrá varias)
+  document.querySelectorAll("#items-container .item-row").forEach(bindRow);
   calcTotals();
 })();
 </script>
@@ -172,5 +191,6 @@
 .input{max-width:100%;}
 .checkbox-line input[type="checkbox"]{ width:20px;height:20px;accent-color:#C07A57;cursor:pointer; }
 .checkbox-line label{ font-weight:600;color:#333;cursor:pointer; }
+.error{ color:#b00020; font-size:12px; }
 </style>
 {% endblock %}

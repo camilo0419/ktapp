@@ -26,10 +26,14 @@ class TransaccionForm(forms.ModelForm):
             "tipo": forms.Select(attrs={"class": "input", "id": "id_tipo"}),
             "campania": forms.TextInput(attrs={"class": "input", "placeholder": "# Campaña", "id": "id_campania"}),
             "fecha": forms.DateInput(attrs={"type": "date", "class": "input"}),
-            # 👇 Ocultamos la hora
-            "hora": forms.HiddenInput(),  # antes: TimeInput
+            "hora": forms.HiddenInput(),  # oculto
             "pagado": forms.CheckboxInput(attrs={"class": "checkbox", "id": "id_pagado"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # ⚠️ clave: el form no exigirá 'hora'; el modelo pone el default al guardar
+        self.fields["hora"].required = False
 
     def clean(self):
         cleaned = super().clean()
@@ -39,6 +43,14 @@ class TransaccionForm(forms.ModelForm):
 
 
 class TransaccionItemForm(forms.ModelForm):
+    # aseguramos que el campo NO sea requerido (blank=True en el modelo) y que el select tenga opción vacía
+    descuento = forms.ChoiceField(
+        required=False,
+        choices=[("", "—")] + [(str(k), v) for k, v in TransaccionItem.DESCUENTOS],
+        widget=forms.Select(attrs={"class": "input"}),
+        label="Descuento %"
+    )
+
     class Meta:
         model = TransaccionItem
         fields = ["producto", "precio_unitario", "cantidad", "descuento"]
@@ -46,9 +58,19 @@ class TransaccionItemForm(forms.ModelForm):
             "producto": forms.TextInput(attrs={"class": "input", "placeholder": "Producto"}),
             "precio_unitario": forms.NumberInput(attrs={"class": "input", "step": "0.01", "min": "0"}),
             "cantidad": forms.NumberInput(attrs={"class": "input", "step": "0.01", "min": "0"}),
-            # Solo 10/20/30%
-            "descuento": forms.Select(choices=TransaccionItem.DESCUENTOS, attrs={"class": "input"}),
         }
+
+    def clean_descuento(self):
+        v = self.cleaned_data.get("descuento")
+        if v in (None, "", "None"):
+            return None
+        try:
+            v_int = int(v)
+        except Exception:
+            raise ValidationError("Descuento inválido.")
+        if v_int not in (10, 20, 30):
+            raise ValidationError("Solo 10%, 20% o 30%.")
+        return v_int
 
 
 TransaccionItemFormSet = inlineformset_factory(

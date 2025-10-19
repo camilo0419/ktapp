@@ -4,11 +4,11 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy, reverse
+from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, TemplateView
 
 from django.db.models import Q, Sum, F, Value as V, DecimalField, ExpressionWrapper
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Cast
 
 from .models import Cliente, Transaccion, Abono
 from .forms import ClienteForm, TransaccionForm, AbonoForm, TransaccionItemFormSet
@@ -30,9 +30,8 @@ class ClienteListView(LoginRequiredMixin, ListView):
             qs = qs.filter(
                 Q(nombre__icontains=q) |
                 Q(telefono__icontains=q) |
-                Q(correo__icontains=q)   # corregido
+                Q(correo__icontains=q)
             )
-        # La plantilla no muestra totales, no anotamos nada aquí.
         return qs.order_by("nombre")
 
     def get(self, request, *args, **kwargs):
@@ -94,7 +93,6 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
         )
         ctx["tx_list"] = tx
 
-        # ---- Totales del cliente (usar ExpressionWrapper para evitar tipos mixtos) ----
         dec = DecimalField(max_digits=14, decimal_places=2)
         zero = V(Decimal("0.00"), output_field=dec)
 
@@ -102,10 +100,8 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
             F("items__precio_unitario") * F("items__cantidad"),
             output_field=dec,
         )
-        desc_num_expr = ExpressionWrapper(
-            F("items__precio_unitario") * F("items__cantidad") * F("items__descuento"),
-            output_field=dec,
-        )
+        desc_pct = Cast(F("items__descuento"), output_field=dec)
+        desc_num_expr = ExpressionWrapper(base_expr * desc_pct, output_field=dec)
 
         base_pag = tx.filter(pagado=True).aggregate(
             s=Coalesce(Sum(base_expr, output_field=dec), zero)
@@ -115,15 +111,13 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
             s=Coalesce(Sum(desc_num_expr, output_field=dec), zero)
         )["s"] or Decimal("0.00")
 
-        total_pagado = base_pag - (desc_num_pag / Decimal("100.00"))
-        ctx["total_pagado"] = total_pagado
+        ctx["total_pagado"] = base_pag - (desc_num_pag / Decimal("100.00"))
 
         pendiente_total = Decimal("0.00")
         for t in tx:
             if not t.pagado:
                 pendiente_total += Decimal(str(t.saldo_actual))
         ctx["total_pendiente"] = pendiente_total
-
         ctx["tx_count"] = tx.count()
         return ctx
 
@@ -141,6 +135,61 @@ class ClienteDetailView(LoginRequiredMixin, DetailView):
             },
         )
         return resp
+
+
+
+def _formset_marca_vacias_como_delete(post_data, prefix):
+    """
+    Devuelve una copia de post_data donde las filas completamente vacías
+    del formset <prefix> quedan marcadas como DELETE=on.
+    """
+    data = post_data.copy()
+    total = int(data.get(f"{prefix}-TOTAL_FORMS", "0") or 0)
+    campos = ("producto", "precio_unitario", "cantidad", "descuento")
+
+    for i in range(total):
+        # si ya viene marcada para borrar, seguimos
+        if data.get(f"{prefix}-{i}-DELETE"):
+            continue
+
+        # revisar si TODOS los campos están vacíos
+        vacia = True
+        for name in campos:
+            raw = (data.get(f"{prefix}-{i}-{name}") or "").strip()
+            if raw != "":
+                vacia = False
+                break
+
+        if vacia:
+            data[f"{prefix}-{i}-DELETE"] = "on"
+
+    return data
+
+
+# ========= helpers para formset =========
+
+def _marcar_filas_vacias(formset):
+    """
+    Marca como 'empty_permitted' los formularios completamente vacíos,
+    para que no generen errores de 'campo obligatorio'.
+    Devuelve cuántas filas NO vacías hay (las que sí deben guardarse).
+    """
+    no_vacias = 0
+    campos = ("producto", "precio_unitario", "cantidad", "descuento")
+    for f in formset.forms:
+        # obtener valores crudos del POST (antes de clean)
+        vacia = True
+        for name in campos:
+            field_name = f"{f.prefix}-{name}"
+            raw = formset.data.get(field_name, "").strip()
+            if raw not in ("", None):
+                vacia = False
+                break
+        if vacia:
+            f.empty_permitted = True
+        else:
+            no_vacias += 1
+    return no_vacias
 
 
 # ========= TRANSACCIONES =========
@@ -171,11 +220,15 @@ class TransaccionCreateView(LoginRequiredMixin, CreateView):
     def post(self, request, *args, **kwargs):
         self.object = None
         form = self.get_form()
-        formset = TransaccionItemFormSet(self.request.POST)
+
+        # Marcar filas vacías como DELETE antes de validar
+        data = _formset_marca_vacias_como_delete(request.POST, prefix="transaccionitem_set")
+        formset = TransaccionItemFormSet(data)
+
         if form.is_valid() and formset.is_valid():
             return self.forms_valid(form, formset)
-        else:
-            return self.forms_invalid(form, formset)
+        return self.forms_invalid(form, formset)
+
 
     def forms_valid(self, form, formset):
         self.object = form.save()
@@ -217,11 +270,14 @@ class TransaccionUpdateView(LoginRequiredMixin, UpdateView):
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         form = self.get_form()
-        formset = TransaccionItemFormSet(self.request.POST, instance=self.object)
+
+        data = _formset_marca_vacias_como_delete(request.POST, prefix="transaccionitem_set")
+        formset = TransaccionItemFormSet(data, instance=self.object)
+
         if form.is_valid() and formset.is_valid():
             return self.forms_valid(form, formset)
-        else:
-            return self.forms_invalid(form, formset)
+        return self.forms_invalid(form, formset)
+
 
     def forms_valid(self, form, formset):
         self.object = form.save()
@@ -310,7 +366,6 @@ def abono_delete(request, pk):
 
 
 # ========= DASHBOARD =========
-from django.db.models.functions import Coalesce, Cast
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = "cartera/dashboard.html"
@@ -321,7 +376,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         dec = DecimalField(max_digits=14, decimal_places=2)
         zero = V(Decimal("0.00"), output_field=dec)
 
-        # Expresiones para trabajar sobre Transaccion queryset
         base_tx = ExpressionWrapper(
             F("items__precio_unitario") * F("items__cantidad"),
             output_field=dec,
@@ -329,7 +383,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         desc_pct_tx = Cast(F("items__descuento"), output_field=dec)
         desc_num_tx = ExpressionWrapper(base_tx * desc_pct_tx, output_field=dec)
 
-        # ------ KPIs globales (sobre Transaccion) ------
         base_p = Transaccion.objects.aggregate(
             s=Coalesce(Sum(base_tx, filter=Q(pagado=False), output_field=dec), zero)
         )["s"] or Decimal("0.00")
@@ -349,7 +402,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         )["s"] or Decimal("0.00")
         total_pagado = base_g - (desc_num_g / Decimal("100.00"))
 
-        # --------- Resumen por cliente (¡ojo al path correcto!) ----------
         base_cli = ExpressionWrapper(
             F("transacciones__items__precio_unitario") * F("transacciones__items__cantidad"),
             output_field=dec,
