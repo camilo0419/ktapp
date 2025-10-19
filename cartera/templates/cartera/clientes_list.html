@@ -1,50 +1,41 @@
 {% extends "base.html" %}
 {% block title %}Clientes{% endblock %}
-
-{% block top_actions %}
-  <a class="btn btn-cobre" href="{% url 'cartera:clientes_create' %}">➕ Nuevo cliente</a>
-{% endblock %}
-
 {% block content %}
-<div class="card mb-2">
-  <div class="card-body">
-    <form method="get" class="flex items-center gap-2" style="flex-wrap: wrap;">
-      <input class="input flex-1" type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar cliente...">
-      <button class="btn btn-outline" type="submit">Buscar</button>
-    </form>
-  </div>
+
+<div class="card">
+  <form method="get" class="row">
+    <input class="input" type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar...">
+    <button class="btn" type="submit">Buscar</button>
+    <a class="btn alt" href="{% url 'cartera:clientes_create' %}">➕ Nuevo cliente</a>
+  </form>
 </div>
 
 <div class="card">
-  <div class="card-body">
-    {% if object_list %}
-      <div class="table-wrap">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Contacto</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for c in object_list %}
-              <tr>
-                <td><strong>{{ c.nombre }}</strong></td>
-                <td><small>{{ c.telefono }}{% if c.correo %} · {{ c.correo }}{% endif %}</small></td>
-                <td class="actions-inline">
-                  <a class="btn btn-outline" href="{% url 'cartera:clientes_detail' c.id %}">Ver</a>
-                  <a class="btn btn-outline" href="{% url 'cartera:clientes_update' c.id %}">Editar</a>
-                  <a class="btn btn-cobre" href="{% url 'cartera:tx_create' %}?cliente={{ c.id }}">➕ Transacción</a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="center mt-2">No hay clientes registrados.</p>
-    {% endif %}
-  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Contacto</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in object_list %}
+      <tr>
+        <td>
+          <a href="{% url 'cartera:clientes_detail' c.id %}">
+            <strong>{{ c.nombre }}</strong>
+          </a>
+        </td>
+        <td><small>{{ c.telefono }}{% if c.correo %} · {{ c.correo }}{% endif %}</small></td>
+        <td class="right">
+          <a class="btn alt" href="{% url 'cartera:clientes_update' c.id %}">Editar</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3">No hay clientes.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

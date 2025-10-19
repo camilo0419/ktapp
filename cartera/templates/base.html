@@ -5,36 +5,39 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}KtApp{% endblock %}</title>
-  <meta name="theme-color" content="#CC845E" />
-  <meta name="color-scheme" content="light only" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
-  <!-- Favicons / PWA -->
+  <meta name="theme-color" content="#CC845E" />
+
+  <!-- Favicons -->
   <link rel="icon" type="image/png" sizes="96x96" href="{% static 'ktapp/icons/favicon-96x96.png' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'ktapp/icons/favicon.svg' %}">
   <link rel="shortcut icon" href="{% static 'ktapp/icons/favicon.ico' %}">
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'ktapp/icons/apple-touch-icon.png' %}">
   <link rel="manifest" href="{% static 'ktapp/site.webmanifest' %}">
 
-  <!-- Tipografía -->
+  <!-- Tipografía & CSS -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Estilos -->
   <link rel="stylesheet" href="{% static 'ktapp/css/ktapp.css' %}">
-
-  {% block extra_head %}{% endblock %}
 </head>
 <body class="app">
+
   <header class="app-header">
     <div class="brand">
       <span class="logo-dot"></span>
       <strong>KtApp</strong>
     </div>
-    <nav class="top-actions">
-      {% block top_actions %}{% endblock %}
+
+    <!-- MENÚ SUPERIOR -->
+    <nav class="nav">
+      <a href="{% url 'cartera:dashboard' %}"
+         class="nav-link {% if request.path == '/' or request.path == '/dashboard/' %}is-active{% endif %}">
+        Inicio
+      </a>
+      <a href="{% url 'cartera:clientes_list' %}"
+         class="nav-link {% if '/clientes/' in request.path %}is-active{% endif %}">
+        Clientes
+      </a>
     </nav>
   </header>
 
@@ -43,18 +46,7 @@
   </main>
 
   <footer class="app-footer">
-    <small>© {{ now|date:"Y" }} KtApp • Todos los derechos reservados</small>
+    <small>© {{ now|date:"Y" }} KtApp · Todos los derechos reservados</small>
   </footer>
-
-  <!-- Service Worker -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register("{% static 'ktapp/sw.js' %}")
-          .catch(err => console.warn('SW fail:', err));
-      });
-    }
-  </script>
-  {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -4,9 +4,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
-from django.views.generic import ListView, DetailView, CreateView, UpdateView
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, TemplateView
 
-from django.db.models import Q, Sum, F, Value, DecimalField, ExpressionWrapper
+from django.db.models import Q, Sum, F, Value as V, DecimalField, ExpressionWrapper
 from django.db.models.functions import Coalesce
 
 from .models import Cliente, Transaccion, Abono
@@ -30,23 +30,22 @@ class ClienteListView(LoginRequiredMixin, ListView):
             qs = qs.filter(
                 Q(nombre__icontains=q) |
                 Q(telefono__icontains=q) |
-                Q(correo__icontains=q)
+                Q(correo__icontainsq=q)
             )
 
-        # Sumamos por separado y luego restamos (sin anidar agregados)
+        # Totales por cliente (valor y abonos)
         qs = qs.annotate(
             total_valor=Coalesce(
                 Sum("transacciones__valor", distinct=True),
-                Value(0),
+                V(0),
                 output_field=DecimalField(max_digits=12, decimal_places=2),
             ),
             total_abonos=Coalesce(
                 Sum("transacciones__abonos__valor"),
-                Value(0),
+                V(0),
                 output_field=DecimalField(max_digits=12, decimal_places=2),
             ),
         ).annotate(
-            # ¡OJO! Alias distinto a la propiedad del modelo
             cartera_total=ExpressionWrapper(
                 F("total_valor") - F("total_abonos"),
                 output_field=DecimalField(max_digits=12, decimal_places=2),
@@ -217,11 +216,18 @@ class AbonoCreateView(LoginRequiredMixin, CreateView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
+        # Por si tu AbonoForm necesita la transacción para validaciones
         kwargs["transaccion"] = self.tx
         return kwargs
 
-    def form_valid(self, form):
+    def get_form(self, form_class=None):
+        # IMPORTANTE: setear la FK en instance ANTES de validar el formulario
+        form = super().get_form(form_class)
         form.instance.transaccion = self.tx
+        return form
+
+    def form_valid(self, form):
+        # Ya viene con transaccion asignada desde get_form
         resp = super().form_valid(form)
         track(
             self.request, "abono_create", "action",
@@ -249,3 +255,62 @@ def abono_delete(request, pk):
     )
     messages.success(request, "Abono eliminado.")
     return redirect("cartera:clientes_detail", pk=cliente_id)
+
+
+# ========= DASHBOARD (INICIO) =========
+
+class DashboardView(LoginRequiredMixin, TemplateView):
+    template_name = "cartera/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        dec = DecimalField(max_digits=14, decimal_places=2)
+        zero = V(0, output_field=dec)
+
+        # Totales globales SIN anidar agregados
+        total_valor_pend = Transaccion.objects.filter(pagado=False).aggregate(
+            s=Coalesce(Sum("valor"), zero)
+        )["s"] or 0
+
+        total_abonos_pend = Abono.objects.filter(transaccion__pagado=False).aggregate(
+            s=Coalesce(Sum("valor"), zero)
+        )["s"] or 0
+
+        total_pendiente = (total_valor_pend - total_abonos_pend)
+
+        total_pagado = Transaccion.objects.filter(pagado=True).aggregate(
+            s=Coalesce(Sum("valor"), zero)
+        )["s"] or 0
+
+        # Resumen por cliente (pendiente y pagado)
+        clientes = (
+            Cliente.objects
+            .annotate(
+                pend_val=Coalesce(
+                    Sum("transacciones__valor", filter=Q(transacciones__pagado=False), distinct=True),
+                    zero, output_field=dec,
+                ),
+                pend_abn=Coalesce(
+                    Sum("transacciones__abonos__valor", filter=Q(transacciones__pagado=False)),
+                    zero, output_field=dec,
+                ),
+                pagado_val=Coalesce(
+                    Sum("transacciones__valor", filter=Q(transacciones__pagado=True), distinct=True),
+                    zero, output_field=dec,
+                ),
+            )
+            .annotate(
+                pendiente=ExpressionWrapper(F("pend_val") - F("pend_abn"), output_field=dec),
+                pagado=F("pagado_val"),
+            )
+            .values("id", "nombre", "pendiente", "pagado")
+            .order_by("-pendiente")[:50]
+        )
+
+        ctx.update({
+            "total_pendiente": total_pendiente,
+            "total_pagado": total_pagado,
+            "resumen_por_cliente": clientes,
+            "clientes_count": Cliente.objects.count(),
+        })
+        return ctx

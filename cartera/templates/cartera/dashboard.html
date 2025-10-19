@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load currency %}
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+
+<!-- KPIs -->
+<div class="grid cols-2">
+  <div class="card">
+    <h3 style="margin-top:0">Total pendiente</h3>
+    <p style="font-size:1.8rem; font-weight:800; color:#AB4226; margin:6px 0;">
+      {{ total_pendiente|cop }}
+    </p>
+    <small>Cuentas por cobrar acumuladas</small>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Total facturado (pagado)</h3>
+    <p style="font-size:1.8rem; font-weight:800; color:#715C47; margin:6px 0;">
+      {{ total_pagado|cop }}
+    </p>
+    <small>Monto de transacciones marcadas como pagadas</small>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Clientes</h3>
+    <p style="font-size:1.8rem; font-weight:800; margin:6px 0;">
+      {{ clientes_count }}
+    </p>
+    <small>Clientes registrados</small>
+  </div>
+</div>
+
+<!-- Ranking por cliente -->
+<div class="card">
+  <h3 style="margin-top:0">Pendiente por cliente</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th class="right">Pendiente</th>
+        <th class="right">Pagado</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in resumen_por_cliente %}
+      <tr>
+        <td><strong>{{ row.nombre }}</strong></td>
+        <td class="right"><strong>{{ row.pendiente|cop }}</strong></td>
+        <td class="right">{{ row.pagado|cop }}</td>
+        <td class="right">
+          <a class="btn alt" href="{% url 'cartera:clientes_detail' row.id %}">Ver</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4">No hay datos.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

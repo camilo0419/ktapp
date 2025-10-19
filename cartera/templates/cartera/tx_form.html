@@ -1,101 +1,147 @@
 {% extends "base.html" %}
 {% block title %}Transacción{% endblock %}
 {% block content %}
-<div class="card grid">
-  <form method="post" class="grid" id="tx-form">
-    {% csrf_token %}
-    <label>Cliente {{ form.cliente }}</label>
-    <label>Tipo {{ form.tipo }}</label>
-    <label id="wrap-campania" style="display:none;"># Campaña {{ form.campania }}</label>
 
-    <label>Descripción {{ form.descripcion }}</label>   <!-- NUEVO -->
+<div class="card" style="max-width:820px;margin:auto;">
+  <h2 style="margin-top:0;">{% if form.instance.pk %}Editar transacción{% else %}Nueva transacción{% endif %}</h2>
+
+  <form method="post" id="txForm" class="grid">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <label>Cliente {{ form.cliente }}</label>
+
+    <label>Tipo {{ form.tipo }}</label>
+
+    <!-- Campo # Campaña -->
+    <div id="campaniaWrap" style="display:none;">
+      <label># Campaña {{ form.campania }}</label>
+    </div>
+
+    <label>Descripción {{ form.descripcion }}</label>
 
     <label>Valor {{ form.valor }}</label>
-    <label>Pagado {{ form.pagado }}</label>
-    <div class="row">
-      <label>Fecha de pago {{ form.fecha_pago }}</label>
-      <label>Hora de pago {{ form.hora_pago }}</label>
+
+    <!-- Checkbox Pagado moderno -->
+    <div class="checkbox-line">
+      {{ form.pagado }}
+      <label for="id_pagado">Pagado</label>
     </div>
+
+    <!-- Fecha/Hora de pago -->
+    <div id="pagoWrap" style="display:none;" class="row">
+      <label style="flex:1;min-width:220px;">Fecha de pago {{ form.fecha_pago }}</label>
+      <label style="flex:1;min-width:180px;">Hora de pago {{ form.hora_pago }}</label>
+    </div>
+
     <label>Notas {{ form.notas }}</label>
+
     <div class="row">
-      <button class="btn">Guardar</button>
-      <a class="btn alt" href="{% url 'cartera:clientes_list' %}">Cancelar</a>
+      <button class="btn" type="submit">Guardar</button>
+      <a class="btn alt" href="{% url 'cartera:clientes_detail' form.instance.cliente.id|default:request.GET.cliente %}">Cancelar</a>
     </div>
   </form>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script>
-(function(){
-  const form = document.getElementById("tx-form");
+(function() {
   const tipo = document.getElementById("id_tipo");
-  const campWrap = document.getElementById("wrap-campania");
-  const camp = document.getElementById("id_campania");
-  const chk = document.getElementById("id_pagado");
-  const fp = document.getElementById("id_fecha_pago");
-  const hp = document.getElementById("id_hora_pago");
+  const campWrap = document.getElementById("campaniaWrap");
+  const campInput = document.getElementById("id_campania");
 
-  function pad(n){ return n < 10 ? "0"+n : n; }
-  function nowLocalDate(){  // YYYY-MM-DD
-    const d = new Date();
-    return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
-  }
-  function nowLocalTime(){  // HH:MM
-    const d = new Date();
-    return pad(d.getHours()) + ":" + pad(d.getMinutes());
+  const chkPagado = document.getElementById("id_pagado");
+  const pagoWrap = document.getElementById("pagoWrap");
+  const fechaPago = document.getElementById("id_fecha_pago");
+  const horaPago  = document.getElementById("id_hora_pago");
+
+  function isNaturaSelected() {
+    if (!tipo) return false;
+    const val = (tipo.value || "").toString().toLowerCase();
+    const txt = (tipo.options[tipo.selectedIndex]?.text || "").toLowerCase();
+    return val.includes("natura") || txt.includes("natura");
   }
 
-  function toggleCampania(){
-    if (!tipo) return;
-    if (tipo.value === "NAT"){
-      campWrap.style.display = "";
-      if (camp) camp.required = true;
+  function toggleCampania() {
+    if (isNaturaSelected()) {
+      campWrap.style.display = "block";
     } else {
       campWrap.style.display = "none";
-      if (camp){ camp.required = false; camp.value = ""; }
+      if (campInput) campInput.value = "";
     }
   }
 
-  function togglePago(){
-    if (!chk) return;
-    const on = chk.checked;
-    if (fp) fp.disabled = !on;
-    if (hp) hp.disabled = !on;
+  function pad2(n){ return String(n).padStart(2,"0"); }
+  function toDateInputValue(d) {
+    return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+  }
 
-    if (on){
-      // Autollenar actual si están vacíos (editable por el usuario)
-      if (fp && !fp.value) fp.value = nowLocalDate();
-      if (hp && !hp.value) hp.value = nowLocalTime();
+  function togglePago() {
+    if (!chkPagado) return;
+    if (chkPagado.checked) {
+      pagoWrap.style.display = "flex";
+      const now = new Date();
+      if (fechaPago && !fechaPago.value) fechaPago.value = toDateInputValue(now);
+      if (horaPago  && !horaPago.value)  horaPago.value  = pad2(now.getHours())+":"+pad2(now.getMinutes());
     } else {
-      // Si desmarcan, limpiar pero dejar deshabilitado
-      if (fp) fp.value = "";
-      if (hp) hp.value = "";
+      pagoWrap.style.display = "none";
+      if (fechaPago) fechaPago.value = "";
+      if (horaPago)  horaPago.value  = "";
     }
   }
 
-  // Confirmación al enviar si está pagado
-  function confirmPaidSubmit(e){
-    if (chk && chk.checked){
-      const fecha = fp ? fp.value : "";
-      const hora  = hp ? hp.value : "";
-      const msg = `Vas a marcar esta transacción como PAGADA.\nFecha: ${fecha || '(hoy)'}  Hora: ${hora || '(ahora)'}\n\n¿Confirmas el pago?`;
-      if (!confirm(msg)){
-        e.preventDefault();
-        return false;
-      }
-    }
-    return true;
-  }
+  if (tipo) tipo.addEventListener("change", toggleCampania);
+  if (chkPagado) chkPagado.addEventListener("change", togglePago);
 
-  if (tipo){ tipo.addEventListener("change", toggleCampania); }
-  if (chk){ chk.addEventListener("change", togglePago); }
-
-  // Inicializaciones por si se edita una existente
+  // Estado inicial
   toggleCampania();
   togglePago();
-
-  if (form){ form.addEventListener("submit", confirmPaidSubmit); }
 })();
 </script>
+
+<style>
+/* === Estilos refinados para inputs === */
+input, select, textarea {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 10px 12px;
+  width: 100%;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #C07A57;
+  box-shadow: 0 0 0 3px rgba(192,122,87,.18);
+}
+label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 600;
+  color: #333;
+}
+.btn {
+  border-radius: 12px;
+}
+
+/* === Checkbox “Pagado” mejor alineado === */
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.checkbox-line input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #C07A57;
+  cursor: pointer;
+}
+
+.checkbox-line label {
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+}
+</style>
 {% endblock %}
