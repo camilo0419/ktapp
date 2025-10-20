@@ -1,11 +1,19 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- Básicos
-SECRET_KEY = "dev-secret-key-cambia-esto"
-DEBUG = True
-ALLOWED_HOSTS = []  # en producción agrega tu dominio o IP
+# --- Seguridad / entorno
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-cambia-esto")
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
+
+ALLOWED_HOSTS = [
+    "kathem.pythonanywhere.com",
+    "www.kathem.pythonanywhere.com",
+]
+
+# Django 4/5: importante para formularios en HTTPS
+CSRF_TRUSTED_ORIGINS = ["https://kathem.pythonanywhere.com"]
 
 # --- Apps
 INSTALLED_APPS = [
@@ -15,13 +23,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "cartera",          # tu app
-    # OJO: no agregues "ktapp" aquí; es el proyecto, no una app
+    "cartera",
 ]
 
-# --- Middleware
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # (Opcional en prod) "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -31,27 +38,9 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "ktapp.urls"
-
-# --- Templates
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # si usas templates globales
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
-    },
-]
-
 WSGI_APPLICATION = "ktapp.wsgi.application"
 
-# --- Base de datos (dev)
+# --- Base de datos (SQLite)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -67,17 +56,13 @@ USE_TZ = True
 
 # --- Archivos estáticos y media
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = BASE_DIR / "staticfiles"  # aquí caerá collectstatic
 
-# Incluimos rutas de estáticos que no vienen de apps instaladas.
-# Aquí es donde pusimos css, icons, manifest y sw: ktapp/static/ktapp/...
 STATICFILES_DIRS = []
-
 ktapp_static = BASE_DIR / "ktapp" / "static"
 if ktapp_static.exists():
     STATICFILES_DIRS.append(ktapp_static)
 
-# (Opcional) Si además tienes una carpeta raíz /static/
 project_static = BASE_DIR / "static"
 if project_static.exists():
     STATICFILES_DIRS.append(project_static)
