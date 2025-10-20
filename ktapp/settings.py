@@ -1,21 +1,16 @@
-import os
+# ktapp/settings.py
 from pathlib import Path
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- Seguridad / entorno
+# Seguridad (ajusta en producción)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-cambia-esto")
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = [
-    "kathem.pythonanywhere.com",
-    "www.kathem.pythonanywhere.com",
-]
-
-# Django 4/5: importante para formularios en HTTPS
+ALLOWED_HOSTS = ["kathem.pythonanywhere.com"]
 CSRF_TRUSTED_ORIGINS = ["https://kathem.pythonanywhere.com"]
 
-# --- Apps
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -28,7 +23,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    # (Opcional en prod) "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -38,9 +32,27 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "ktapp.urls"
+
+# ⬇️ ESTA SECCIÓN ES LA QUE FALTA
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],  # opcional si usas /templates global
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+# ⬆️
+
 WSGI_APPLICATION = "ktapp.wsgi.application"
 
-# --- Base de datos (SQLite)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -48,15 +60,13 @@ DATABASES = {
     }
 }
 
-# --- Localización
 LANGUAGE_CODE = "es"
 TIME_ZONE = "America/Bogota"
 USE_I18N = True
 USE_TZ = True
 
-# --- Archivos estáticos y media
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"  # aquí caerá collectstatic
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 STATICFILES_DIRS = []
 ktapp_static = BASE_DIR / "ktapp" / "static"
@@ -72,7 +82,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# --- Auth redirects
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "cartera:clientes_list"
 LOGOUT_REDIRECT_URL = "login"
+# Fin de ktapp/settings.py
