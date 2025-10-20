@@ -22,7 +22,8 @@
   </div>
 </div>
 
-<div class="card">
+<!-- ===== Desktop (tu tabla original) ===== -->
+<div class="card hide-on-mobile">
   <table class="tx-table">
     <thead>
       <tr>
@@ -83,6 +84,49 @@
   </table>
 </div>
 
+<!-- ===== Móvil (cards táctiles) ===== -->
+<div class="card show-on-mobile">
+  <h3 style="margin:0 0 10px;">Transacciones</h3>
+  <div class="card-list">
+    {% for t in tx_list %}
+    <div class="touch-card touchable" data-href="{% url 'cartera:tx_detail' t.id %}">
+      <div class="row">
+        <div class="title">{{ t.get_tipo_display }}</div>
+        <div class="right sub">{{ t.fecha|date:"Y-m-d" }}</div>
+      </div>
+
+      {% if t.items.all %}
+      <div class="chips">
+        {% for it in t.items.all %}
+          <span class="chip">{{ it.cantidad|floatformat:0 }} × {{ it.producto }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="row" style="margin-top:8px;">
+        <span class="k">Valor:</span>&nbsp;<span class="v">{{ t.valor_a_pagar|cop }}</span>
+        <span class="k" style="margin-left:12px;">Abonado:</span>&nbsp;<span class="v">{{ t.total_abonos|cop }}</span>
+        <span class="k" style="margin-left:auto;">Saldo:</span>&nbsp;<span class="v">{{ t.saldo_actual|cop }}</span>
+      </div>
+
+      <div class="row" style="margin-top:8px;">
+        {% if t.pagado %}<span class="pill-ok">Pagado</span>{% else %}<span class="pill-warn">Pendiente</span>{% endif %}
+        <span class="sub" style="margin-left:auto;">#{{ t.id }}</span>
+      </div>
+
+      <div class="cta-row">
+        <a class="btn alt" href="{% url 'cartera:tx_detail' t.id %}">Ver</a>
+        {% if not t.pagado %}
+          <a class="btn cobre" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="touch-card">Sin transacciones.</div>
+    {% endfor %}
+  </div>
+</div>
+
 <style>
 /* === Columnas base === */
 .tx-table .w-date{ width:120px; }
@@ -90,72 +134,31 @@
 .tx-table td{ vertical-align:middle; }
 
 /* Columna de Acciones: compacta y centrada */
-.tx-table .w-actions{
-  width: 160px;                /* más angosta */
-  text-align: center;
-}
+.tx-table .w-actions{ width:160px; text-align:center; }
 .actions-cell{ text-align:center; }
 .actions{
-  display:inline-flex;
-  gap:6px;
-  align-items:center;
-  justify-content:center;
-  flex-wrap:wrap;
-  max-width:160px;
+  display:inline-flex; gap:6px; align-items:center; justify-content:center;
+  flex-wrap:wrap; max-width:160px;
 }
 
 /* Botones compactos */
-.btn.sm{
-  padding:6px 10px;
-  font-size:12.5px;
-  line-height:1.1;
-  border-radius:8px;
-  min-width:auto;              /* sin anchura forzada */
-}
+.btn.sm{ padding:6px 10px; font-size:12.5px; line-height:1.1; border-radius:8px; min-width:auto; }
 
 /* Chips de productos (debajo de la descripción) */
-.items-mini{
-  margin-top:6px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:6px;
-}
+.items-mini{ margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; }
 .chip{
-  display:inline-block;
-  padding:3px 8px;
-  border-radius:999px;
-  font-size:12px;
-  color:#715C47;                         /* café */
-  background:rgba(195,164,139,.20);      /* arena suave */
-  border:1px solid rgba(195,164,139,.35);
+  display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px;
+  color:#715C47; background:rgba(195,164,139,.20); border:1px solid rgba(195,164,139,.35);
 }
 
 /* Pills suaves (paleta) */
-.pill.soft{
-  display:inline-block;
-  padding:4px 10px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:600;
-}
-.pill.soft.ok{
-  color:#2e5b3a;
-  background:rgba(113,92,71,0.10);
-  border:1px solid rgba(113,92,71,0.18);
-}
-.pill.soft.warn{
-  color:#7a2315;
-  background:rgba(171,66,38,0.10);
-  border:1px solid rgba(171,66,38,0.18);
-}
+.pill.soft{ display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+.pill.soft.ok{ color:#2e5b3a; background:rgba(113,92,71,0.10); border:1px solid rgba(113,92,71,0.18); }
+.pill.soft.warn{ color:#7a2315; background:rgba(171,66,38,0.10); border:1px solid rgba(171,66,38,0.18); }
 
-/* Dinero: misma jerarquía visual que el resto (solo pesos) */
+/* Dinero */
 .right{ text-align:right; }
-.money{
-  font-weight:500;
-  color:#3c3c3c;
-  font-size:14px;
-}
+.money{ font-weight:500; color:#3c3c3c; font-size:14px; }
 
 /* Botones con paleta */
 .btn.cobre{ background:#CC845E; color:#fff; }
@@ -165,11 +168,10 @@
 
 <script>
 (function(){
-  // Confirmación al marcar pagada
+  // Confirmación al marcar pagada (en la tabla desktop)
   document.querySelectorAll('.js-paid').forEach(a=>{
     a.addEventListener('click', function(e){
-      const ok = confirm('¿Confirmas marcar esta transacción como PAGADA?');
-      if(!ok){ e.preventDefault(); }
+      if(!confirm('¿Confirmas marcar esta transacción como PAGADA?')) e.preventDefault();
     });
   });
 })();

@@ -1,16 +1,110 @@
 {% extends "base.html" %}
 {% block title %}Iniciar sesión{% endblock %}
 {% block content %}
-<div class="card" style="max-width:420px;margin:40px auto;">
-  <h2 style="margin-top:0">Iniciar sesión</h2>
-  <form method="post" class="grid">
-    {% csrf_token %}
-    <label>Usuario {{ form.username }}</label>
-    <label>Contraseña {{ form.password }}</label>
-    <button class="btn">Entrar</button>
-  </form>
-  {% if form.errors %}
-    <p style="color:#ff9898;margin-top:8px;">Usuario o contraseña inválidos.</p>
-  {% endif %}
+
+<style>
+.login-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 90vh;
+  background: linear-gradient(135deg, #fff9f4 0%, #ffe7d6 100%);
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  padding: 36px 42px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  animation: fadeIn 0.4s ease;
+}
+
+.login-card h2 {
+  margin-bottom: 20px;
+  color: #1f1f1f;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.login-card label {
+  display: block;
+  text-align: left;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 6px;
+  margin-top: 14px;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: border-color 0.2s;
+}
+
+.login-card input:focus {
+  border-color: #C07A57;
+  outline: none;
+}
+
+.login-card .btn {
+  margin-top: 24px;
+  width: 100%;
+  background: #C07A57;
+  color: #fff;
+  padding: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+
+.login-card .btn:hover {
+  background: #a86445;
+}
+
+.error-msg {
+  background: #ffebeb;
+  border: 1px solid #ffbdbd;
+  color: #a33;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 18px;
+  font-size: 14px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+
+<div class="login-wrapper">
+  <div class="login-card">
+    <h2>Iniciar sesión</h2>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <label for="{{ form.username.id_for_label }}">Usuario</label>
+      {{ form.username }}
+
+      <label for="{{ form.password.id_for_label }}">Contraseña</label>
+      {{ form.password }}
+
+      <button class="btn" type="submit">Entrar</button>
+    </form>
+
+    {% if form.errors %}
+      <div class="error-msg">Usuario o contraseña inválidos.</div>
+    {% endif %}
+  </div>
 </div>
+
 {% endblock %}

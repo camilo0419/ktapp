@@ -10,7 +10,8 @@
   </form>
 </div>
 
-<div class="card">
+<!-- ===== Desktop (tu tabla original) ===== -->
+<div class="card hide-on-mobile">
   <table>
     <thead>
       <tr>
@@ -38,4 +39,33 @@
     </tbody>
   </table>
 </div>
+
+<!-- ===== Móvil (cards táctiles) ===== -->
+<div class="card show-on-mobile" style="padding-top:12px;">
+  <div class="card-list">
+    {% for c in object_list %}
+    <div class="touch-card touchable" data-href="{% url 'cartera:clientes_detail' c.id %}">
+      <div class="row">
+        <div class="title">{{ c.nombre }}</div>
+        <div class="right sub">ID {{ c.id }}</div>
+      </div>
+      <div class="row sub" style="margin-top:6px;">
+        <span class="k">Tel:</span>&nbsp;<span class="v">{{ c.telefono|default:"—" }}</span>
+      </div>
+      {% if c.correo %}
+      <div class="row sub">
+        <span class="k">Correo:</span>&nbsp;<span class="v">{{ c.correo }}</span>
+      </div>
+      {% endif %}
+      <div class="cta-row">
+        <a class="btn alt" href="{% url 'cartera:clientes_update' c.id %}">Editar</a>
+        <a class="btn cobre" href="{% url 'cartera:clientes_detail' c.id %}">Ver</a>
+      </div>
+    </div>
+    {% empty %}
+    <div class="touch-card">No hay clientes.</div>
+    {% endfor %}
+  </div>
+</div>
+
 {% endblock %}

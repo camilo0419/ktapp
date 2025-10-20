@@ -20,15 +20,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'ktapp/css/ktapp.css' %}">
 </head>
+
 <body class="app">
 
+  <!-- HEADER -->
   <header class="app-header">
     <div class="brand">
       <span class="logo-dot"></span>
       <strong>KtApp</strong>
     </div>
 
-    <!-- TODO A LA DERECHA -->
     <div class="header-right">
       <nav class="nav">
         <a href="{% url 'cartera:dashboard' %}"
@@ -45,15 +46,28 @@
     </div>
   </header>
 
+  <!-- CONTENIDO -->
   <main class="app-main">
     {% block content %}{% endblock %}
   </main>
 
+  <!-- FOOTER -->
   <footer class="app-footer">
     <small>© {{ now|date:"Y" }} KtApp · Todos los derechos reservados</small>
   </footer>
 
+  <!-- ======== ESTILOS ======== -->
   <style>
+    body.app {
+      font-family: 'Inter', sans-serif;
+      background: #faf6f3;
+      margin: 0;
+      color: #222;
+    }
+
+    .app-main { padding: 16px; }
+
+    /* Header */
     .app-header {
       display: flex;
       justify-content: space-between;
@@ -61,6 +75,8 @@
       padding: 12px 20px;
       background: linear-gradient(to bottom, #F6F1EC, #EFE8E1);
       border-bottom: 1px solid rgba(195,164,139,.3);
+      flex-wrap: wrap;
+      gap: 12px;
     }
 
     .brand {
@@ -85,12 +101,15 @@
       align-items: center;
       gap: 20px;
       margin-left: auto;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .nav {
       display: flex;
       gap: 18px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     .nav-link {
@@ -111,25 +130,95 @@
       color: #fff;
     }
 
-    .btn.cobre {
-      background: #CC845E;
-      color: #fff;
-      font-weight: 600;
+    /* Botones */
+    .btn {
+      display: inline-block;
       padding: 7px 14px;
       border-radius: 8px;
+      font-weight: 600;
       text-decoration: none;
+      border: none;
+      cursor: pointer;
       transition: all .2s;
     }
 
-    .btn.cobre:hover {
-      background: #b46f4d;
+    .btn.cobre {
+      background: #CC845E;
+      color: #fff;
+    }
+    .btn.cobre:hover { background: #b46f4d; }
+
+    .btn.alt {
+      background: #e8e2dc;
+      color: #3b2e25;
     }
 
     .btn.sm {
       font-size: 14px;
       line-height: 1.1;
     }
+
+    /* Footer */
+    .app-footer {
+      text-align: center;
+      padding: 12px 0;
+      color: #715C47;
+      font-size: 14px;
+      background: #f8f4f0;
+      border-top: 1px solid #eadfd4;
+      margin-top: 20px;
+    }
+
+    /* === Cards táctiles & responsive helpers === */
+    .hide-on-mobile{ display:block; }
+    .show-on-mobile{ display:none; }
+
+    @media (max-width: 860px){
+      .hide-on-mobile{ display:none !important; }
+      .show-on-mobile{ display:block !important; }
+      .app-main { padding: 12px; }
+      .app-header { justify-content: center; }
+      .header-right { justify-content: center; }
+    }
+
+    .card-list{ display:grid; gap:12px; }
+    .touch-card{
+      background:#fff;
+      border:1px solid #eee;
+      border-radius:16px;
+      padding:14px;
+      box-shadow:0 2px 10px rgba(0,0,0,.05);
+      transition: all .15s ease-in-out;
+    }
+    .touch-card:hover{ transform:translateY(-2px); }
+    .touch-card .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .touch-card .title{ font-weight:800; font-size:1.05rem; color:#222; }
+    .touch-card .sub{ color:#666; font-size:.92rem; }
+    .touch-card .k{ color:#444; font-weight:700; }
+    .touch-card .v{ color:#111; font-weight:800; }
+    .touch-card .right{ margin-left:auto; text-align:right; }
+    .touch-card .chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .chip{
+      display:inline-flex; align-items:center; gap:6px;
+      border-radius:999px; padding:6px 10px;
+      background:#f3ede7; color:#4b3b2e; font-weight:700; font-size:.82rem;
+    }
+    .pill-ok{ background:#2e7d32; color:#fff; font-weight:800; border-radius:999px; padding:4px 10px; }
+    .pill-warn{ background:#b3261e; color:#fff; font-weight:800; border-radius:999px; padding:4px 10px; }
+    .cta-row{ display:flex; gap:8px; margin-top:10px; }
+    .cta-row .btn{ flex:1; text-align:center; }
+    .touchable{ position:relative; cursor:pointer; }
+    .touchable:active{ transform:scale(.997); }
   </style>
+
+  <!-- ======== SCRIPTS ======== -->
+  <script>
+    // Click completo en card táctil
+    document.addEventListener('click', e => {
+      const card = e.target.closest('[data-href]');
+      if(card){ window.location.href = card.dataset.href; }
+    });
+  </script>
 
 </body>
 </html>
