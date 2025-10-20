@@ -42,7 +42,8 @@
         </a>
       </nav>
 
-      <a href="{% url 'cartera:tx_create' %}" class="btn cobre sm">➕ Nueva transacción</a>
+      <!-- CTA MENOS PROTAGONISTA -->
+      <a href="{% url 'cartera:tx_create' %}" class="btn header-cta sm">➕ Transacción</a>
     </div>
   </header>
 
@@ -120,17 +121,10 @@
       border-radius: 6px;
       transition: all .2s;
     }
+    .nav-link:hover { background: rgba(204,132,94,0.12); }
+    .nav-link.is-active { background: #CC845E; color: #fff; }
 
-    .nav-link:hover {
-      background: rgba(204,132,94,0.12);
-    }
-
-    .nav-link.is-active {
-      background: #CC845E;
-      color: #fff;
-    }
-
-    /* Botones */
+    /* Botones base */
     .btn {
       display: inline-block;
       padding: 7px 14px;
@@ -141,21 +135,21 @@
       cursor: pointer;
       transition: all .2s;
     }
-
-    .btn.cobre {
-      background: #CC845E;
-      color: #fff;
-    }
+    .btn.cobre { background: #CC845E; color: #fff; }
     .btn.cobre:hover { background: #b46f4d; }
 
-    .btn.alt {
-      background: #e8e2dc;
-      color: #3b2e25;
-    }
+    .btn.alt { background: #e8e2dc; color: #3b2e25; }
+    .btn.sm { font-size: 14px; line-height: 1.1; }
 
-    .btn.sm {
-      font-size: 14px;
-      line-height: 1.1;
+    /* CTA de header con MENOS protagonismo (outline suave) */
+    .header-cta{
+      background: #f2ece6;
+      color: #5a4a3d;
+      border: 1px solid rgba(113,92,71,.35);
+    }
+    .header-cta:hover{
+      background:#eadfd4;
+      color:#3b2e25;
     }
 
     /* Footer */
@@ -178,16 +172,15 @@
       .show-on-mobile{ display:block !important; }
       .app-main { padding: 12px; }
       .app-header { justify-content: center; }
-      .header-right { justify-content: center; }
+      .header-right { justify-content: center; gap:12px; }
+      /* CTA aún más discreta en pantallas pequeñas */
+      .header-cta{ padding:6px 10px; font-weight:600; }
     }
 
     .card-list{ display:grid; gap:12px; }
     .touch-card{
-      background:#fff;
-      border:1px solid #eee;
-      border-radius:16px;
-      padding:14px;
-      box-shadow:0 2px 10px rgba(0,0,0,.05);
+      background:#fff; border:1px solid #eee; border-radius:16px;
+      padding:14px; box-shadow:0 2px 10px rgba(0,0,0,.05);
       transition: all .15s ease-in-out;
     }
     .touch-card:hover{ transform:translateY(-2px); }
