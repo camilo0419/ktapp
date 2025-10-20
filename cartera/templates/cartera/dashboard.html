@@ -4,43 +4,99 @@
 
 {% block content %}
 
-<!-- KPIs -->
+<!-- Filtros -->
+<form id="filters-form" class="card filters" method="get" style="display:flex; gap:16px; align-items:end; flex-wrap:wrap; background:#f8f4f0;">
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
+    <span>Cliente</span>
+    <select name="cliente" id="f-cliente" class="input">
+      <option value="">— Todos —</option>
+      {% for c in clientes_for_select %}
+        <option value="{{ c.id }}" {% if f_cliente == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
+    <span>Mes</span>
+    <select name="mes" id="f-mes" class="input">
+      <option value="act" {% if f_mes == 'act' %}selected{% endif %}>Mes actual</option>
+      <option value="prev" {% if f_mes == 'prev' %}selected{% endif %}>Mes anterior</option>
+      <option value="year" {% if f_mes == 'year' %}selected{% endif %}>Año actual</option>
+      <option value="custom" {% if f_mes == 'custom' %}selected{% endif %}>Personalizado</option>
+    </select>
+  </label>
+
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
+    <span>Desde</span>
+    <input class="input" type="date" name="desde" id="f-desde" value="{{ f_desde|date:'Y-m-d' }}">
+  </label>
+
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
+    <span>Hasta</span>
+    <input class="input" type="date" name="hasta" id="f-hasta" value="{{ f_hasta|date:'Y-m-d' }}">
+  </label>
+
+  <div style="margin-left:auto; display:flex; gap:10px;">
+    <button class="btn cobre" type="submit">Aplicar</button>
+    <a class="btn alt" href="{% url 'cartera:dashboard' %}">Limpiar</a>
+  </div>
+</form>
+
+<!-- KPIs 2x2 -->
 <div class="grid cols-2">
-  <div class="card">
-    <h3 style="margin-top:0">Total pendiente</h3>
-    <p style="font-size:1.8rem; font-weight:800; color:#AB4226; margin:6px 0;">
-      {{ total_pendiente|cop }}
-    </p>
-    <small>Cuentas por cobrar acumuladas</small>
+
+  <!-- Valor pendiente (sin filtro de fechas; sí filtra por cliente si se selecciona) -->
+  <div class="card kpi">
+    <h3>Valor pendiente</h3>
+    <p class="kpi-num" style="color:#AB4226;">{{ valor_pendiente|cop }}</p>
+    <small>Saldo vivo (sin filtro de fechas; filtra por cliente si se selecciona).</small>
   </div>
 
-  <div class="card">
-    <h3 style="margin-top:0">Total facturado (pagado)</h3>
-    <p style="font-size:1.8rem; font-weight:800; color:#715C47; margin:6px 0;">
-      {{ total_pagado|cop }}
-    </p>
-    <small>Monto de transacciones marcadas como pagadas</small>
+  <!-- Facturas pendientes (sin filtro de fechas; sí filtra por cliente) -->
+  <div class="card kpi">
+    <h3>Facturas pendientes</h3>
+    <p class="kpi-num">{{ facturas_pendientes }}</p>
+    <small>Cantidad de transacciones no pagadas.</small>
   </div>
 
-  <div class="card">
-    <h3 style="margin-top:0">Clientes</h3>
-    <p style="font-size:1.8rem; font-weight:800; margin:6px 0;">
-      {{ clientes_count }}
-    </p>
-    <small>Clientes registrados</small>
+  <!-- Ventas del período (filtro por fechas/cliente) -->
+  <div class="card kpi">
+    <h3>Ventas del período</h3>
+    <p class="kpi-num" style="color:#715C47;">{{ ventas_periodo|cop }}</p>
+    <small>Transacciones (con descuento) dentro del rango filtrado.</small>
+  </div>
+
+  <!-- Transacciones (período) (filtro por fechas/cliente) -->
+  <div class="card kpi">
+    <h3>Transacciones (período)</h3>
+    <p class="kpi-num">{{ tx_periodo }}</p>
+    <small>Solo dentro del rango filtrado.</small>
+  </div>
+
+  <!-- Mejor cliente (período) -->
+  <div class="card kpi">
+    <h3>Mejor cliente</h3>
+    <p class="kpi-num" style="font-size:1.4rem;">{{ mejor_cliente_nombre }}</p>
+    <small>Ventas del período: <strong>{{ mejor_cliente_total|cop }}</strong></small>
+  </div>
+
+  <!-- Cliente con más cartera (sin filtro de fechas; respeta cliente si se selecciona) -->
+  <div class="card kpi">
+    <h3>Cliente con más cartera</h3>
+    <p class="kpi-num" style="font-size:1.4rem;">{{ cliente_mas_cartera_nombre }}</p>
+    <small>Pendiente: <strong>{{ cliente_mas_cartera_total|cop }}</strong></small>
   </div>
 </div>
 
-<!-- Ranking por cliente -->
+<!-- Pendiente total por cliente -->
 <div class="card">
-  <h3 style="margin-top:0">Pendiente por cliente</h3>
+  <h3 style="margin-top:0">Pendiente total por cliente</h3>
   <table>
     <thead>
       <tr>
         <th>Cliente</th>
         <th class="right">Pendiente</th>
-        <th class="right">Pagado</th>
-        <th></th>
+        <th class="right">Acciones</th>
       </tr>
     </thead>
     <tbody>
@@ -48,16 +104,76 @@
       <tr>
         <td><strong>{{ row.nombre }}</strong></td>
         <td class="right"><strong>{{ row.pendiente|cop }}</strong></td>
-        <td class="right">{{ row.pagado|cop }}</td>
         <td class="right">
           <a class="btn alt" href="{% url 'cartera:clientes_detail' row.id %}">Ver</a>
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="4">No hay datos.</td></tr>
+      <tr><td colspan="3">No hay datos.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<style>
+/* grids y tarjetas */
+.grid{ display:grid; gap:16px; }
+.grid.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+@media (max-width: 900px){ .grid.cols-2{ grid-template-columns: 1fr; } }
+
+.kpi .kpi-num{
+  margin:6px 0 2px;
+  font-weight:800;
+  font-size:1.9rem;
+}
+
+/* filtros */
+.filters .input{ background:#fff; }
+.filters{ border:1px solid #eadfd4; }
+
+/* tabla */
+.right{ text-align:right; }
+</style>
+
+<script>
+(function(){
+  const form = document.getElementById('filters-form');
+  const selCliente = document.getElementById('f-cliente');
+  const selMes = document.getElementById('f-mes');
+  const dInput = document.getElementById('f-desde');
+  const hInput = document.getElementById('f-hasta');
+
+  function setMonthBounds(y, m){
+    const d1 = new Date(y, m-1, 1);
+    const d2 = new Date(y, m, 0);
+    const p = n => String(n).padStart(2,'0');
+    dInput.value = `${d1.getFullYear()}-${p(d1.getMonth()+1)}-${p(d1.getDate())}`;
+    hInput.value = `${d2.getFullYear()}-${p(d2.getMonth()+1)}-${p(d2.getDate())}`;
+  }
+
+  function apply(){ if(form) form.submit(); }
+
+  if (selMes){
+    selMes.addEventListener('change', () => {
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = today.getMonth()+1;
+
+      if (selMes.value === 'act'){
+        setMonthBounds(y, m);
+      } else if (selMes.value === 'prev'){
+        const prev = new Date(y, m-2, 1); // mes anterior
+        setMonthBounds(prev.getFullYear(), prev.getMonth()+1);
+      } else if (selMes.value === 'year'){
+        dInput.value = `${y}-01-01`;
+        hInput.value = `${y}-12-31`;
+      }
+      apply();
+    });
+  }
+
+  if (selCliente){ selCliente.addEventListener('change', apply); }
+})();
+</script>
 
 {% endblock %}

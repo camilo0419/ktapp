@@ -23,93 +23,156 @@
 </div>
 
 <div class="card">
-  <table>
+  <table class="tx-table">
     <thead>
       <tr>
-        <th>Fecha</th>
+        <th class="w-date">Fecha</th>
         <th>Tipo</th>
-        <th>Campaña</th>
         <th>Descripción</th>
         <th class="right">Valor</th>
         <th class="right">Abonado</th>
         <th class="right">Saldo</th>
         <th>Estado</th>
-        <th>Pago</th>
-        <th></th>
+        <th class="w-actions">Acciones</th>
       </tr>
     </thead>
     <tbody>
       {% for t in tx_list %}
       <tr>
-        <td>{{ t.creado|date:"Y-m-d H:i" }}</td>
+        <td class="nowrap">{{ t.fecha|date:"Y-m-d" }}</td>
         <td>{{ t.get_tipo_display }}</td>
-        <td>{{ t.campania }}</td>
+
         <td>
-          {% with prods=t.items.all %}
-            {% if prods %}
-              {% for it in prods %}
-                {{ it.producto }}{% if not forloop.last %}, {% endif %}
+          {% if t.descripcion %}<div>{{ t.descripcion }}</div>{% endif %}
+          {% if t.items.all %}
+            <div class="items-mini">
+              {% for it in t.items.all %}
+                <span class="chip">{{ it.cantidad|floatformat:0 }} × {{ it.producto }}</span>
               {% endfor %}
-            {% else %}
-              <em>—</em>
-            {% endif %}
-          {% endwith %}
+            </div>
+          {% endif %}
         </td>
-        <td class="right"><strong>{{ t.valor_a_pagar|cop }}</strong></td>
-        <td class="right">{{ t.total_abonos|floatformat:0|add:""|cut:"," }}</td>
-        <td class="right"><strong>{{ t.saldo_actual|floatformat:0|add:""|cut:"," }}</strong></td>
+
+        <td class="right money">{{ t.valor_a_pagar|cop }}</td>
+        <td class="right money">{{ t.total_abonos|cop }}</td>
+        <td class="right money">{{ t.saldo_actual|cop }}</td>
+
         <td>
           {% if t.pagado %}
-            <span class="pill ok">Pagado</span>
+            <span class="pill soft ok">Pagado</span>
           {% else %}
-            <span class="pill warn">Pendiente</span>
+            <span class="pill soft warn">Pendiente</span>
           {% endif %}
         </td>
-        <td>{% if t.pagado_en %}{{ t.pagado_en|date:"Y-m-d H:i" }}{% endif %}</td>
-        <td class="row">
-          <a class="btn alt" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
-          {% if not t.pagado %}
-            <a class="btn ok" href="{% url 'cartera:abono_create' t.id %}">➕ Abono</a>
-            <a class="btn warn" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
-          {% endif %}
-        </td>
-      </tr>
 
-      {% if t.abonos.all %}
-      <tr>
-        <td colspan="10">
-          <div class="card">
-            <strong>Abonos</strong>
-            <table style="margin-top:8px; width:100%;">
-              <thead>
-                <tr>
-                  <th>Fecha</th><th>Hora</th><th>Método</th><th class="right">Valor</th><th>Notas</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for a in t.abonos.all %}
-                <tr>
-                  <td>{{ a.fecha }}</td>
-                  <td>{{ a.hora|time:"H:i" }}</td>
-                  <td>{{ a.get_metodo_display }}</td>
-                  <td class="right">{{ a.valor|floatformat:0|add:""|cut:"," }}</td>
-                  <td>{{ a.notas }}</td>
-                  <td class="right"><a class="btn alt" href="{% url 'cartera:abono_delete' a.id %}">Eliminar</a></td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="6"><em>Sin abonos</em></td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+        <td class="actions-cell">
+          <div class="actions">
+            <a class="btn alt sm" href="{% url 'cartera:tx_detail' t.id %}">Ver</a>
+
+            {% if not t.pagado %}
+              <a class="btn alt sm" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
+              <a class="btn oxido sm js-paid" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
+            {% endif %}
           </div>
         </td>
       </tr>
-      {% endif %}
-
       {% empty %}
-      <tr><td colspan="10">Sin transacciones.</td></tr>
+      <tr><td colspan="8">Sin transacciones.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<style>
+/* === Columnas base === */
+.tx-table .w-date{ width:120px; }
+.tx-table .nowrap{ white-space:nowrap; }
+.tx-table td{ vertical-align:middle; }
+
+/* Columna de Acciones: compacta y centrada */
+.tx-table .w-actions{
+  width: 160px;                /* más angosta */
+  text-align: center;
+}
+.actions-cell{ text-align:center; }
+.actions{
+  display:inline-flex;
+  gap:6px;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  max-width:160px;
+}
+
+/* Botones compactos */
+.btn.sm{
+  padding:6px 10px;
+  font-size:12.5px;
+  line-height:1.1;
+  border-radius:8px;
+  min-width:auto;              /* sin anchura forzada */
+}
+
+/* Chips de productos (debajo de la descripción) */
+.items-mini{
+  margin-top:6px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.chip{
+  display:inline-block;
+  padding:3px 8px;
+  border-radius:999px;
+  font-size:12px;
+  color:#715C47;                         /* café */
+  background:rgba(195,164,139,.20);      /* arena suave */
+  border:1px solid rgba(195,164,139,.35);
+}
+
+/* Pills suaves (paleta) */
+.pill.soft{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+}
+.pill.soft.ok{
+  color:#2e5b3a;
+  background:rgba(113,92,71,0.10);
+  border:1px solid rgba(113,92,71,0.18);
+}
+.pill.soft.warn{
+  color:#7a2315;
+  background:rgba(171,66,38,0.10);
+  border:1px solid rgba(171,66,38,0.18);
+}
+
+/* Dinero: misma jerarquía visual que el resto (solo pesos) */
+.right{ text-align:right; }
+.money{
+  font-weight:500;
+  color:#3c3c3c;
+  font-size:14px;
+}
+
+/* Botones con paleta */
+.btn.cobre{ background:#CC845E; color:#fff; }
+.btn.oxido{ background:#AB4226; color:#fff; }
+.btn:disabled{ opacity:.55; cursor:not-allowed; }
+</style>
+
+<script>
+(function(){
+  // Confirmación al marcar pagada
+  document.querySelectorAll('.js-paid').forEach(a=>{
+    a.addEventListener('click', function(e){
+      const ok = confirm('¿Confirmas marcar esta transacción como PAGADA?');
+      if(!ok){ e.preventDefault(); }
+    });
+  });
+})();
+</script>
+
 {% endblock %}

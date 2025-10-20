@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load currency %}
+{% block title %}TX #{{ tx.id }} - {{ tx.cliente.nombre }}{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2 style="margin:0 0 8px;">Transacción #{{ tx.id }}</h2>
+  <p><strong>Cliente:</strong> {{ tx.cliente.nombre }}</p>
+  <p><strong>Fecha:</strong> {{ tx.fecha|date:"Y-m-d" }} · <strong>Tipo:</strong> {{ tx.get_tipo_display }}
+    {% if tx.campania %} · <strong>Campaña:</strong> {{ tx.campania }}{% endif %}
+  </p>
+  <p><strong>Estado:</strong>
+    {% if tx.pagado %}<span class="pill" style="background:#2e7d32;">Pagado</span>
+    {% else %}<span class="pill" style="background:#c62828;">Pendiente</span>{% endif %}
+  </p>
+  <div class="row" style="gap:8px;margin-top:10px;">
+    <a class="btn alt" href="{% url 'cartera:tx_update' tx.id %}">Editar</a>
+    {% if not tx.pagado %}
+      <a class="btn" href="{% url 'cartera:abono_create' tx.id %}">Abono</a>
+      <a class="btn" href="{% url 'cartera:tx_pagada' tx.id %}">Marcar pagada</a>
+    {% endif %}
+    <a class="btn" href="{% url 'cartera:clientes_detail' tx.cliente_id %}">Volver al cliente</a>
+  </div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <h3 style="margin-top:0;">Ítems</h3>
+    <table>
+      <thead><tr><th>Producto</th><th class="right">P. U.</th><th class="right">Cant.</th><th class="right">Desc %</th><th class="right">Total</th></tr></thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>{{ it.producto }}</td>
+          <td class="right">{{ it.precio_unitario|cop }}</td>
+          <td class="right">{{ it.cantidad|floatformat:0|add:""|cut:"," }}</td>
+          <td class="right">{% if it.descuento %}{{ it.descuento }}%{% else %}—{% endif %}</td>
+          <td class="right">{{ it.total_linea|cop }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><em>Sin ítems</em></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Abonos</h3>
+    <table>
+      <thead><tr><th>Fecha</th><th>Hora</th><th>Método</th><th class="right">Valor</th><th>Notas</th></tr></thead>
+      <tbody>
+        {% for a in abonos %}
+        <tr>
+          <td>{{ a.fecha|date:"Y-m-d" }}</td>
+          <td>{{ a.hora|time:"H:i" }}</td>
+          <td>{{ a.get_metodo_display }}</td>
+          <td class="right">{{ a.valor|cop }}</td>
+          <td>{{ a.notas }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5"><em>Sin abonos</em></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="margin-top:12px;">
+      <p><strong>Valor:</strong> {{ tx.valor_a_pagar|cop }}</p>
+      <p><strong>Abonado:</strong> {{ tx.total_abonos|cop }}</p>
+      <p><strong>Saldo:</strong> {{ tx.saldo_actual|cop }}</p>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

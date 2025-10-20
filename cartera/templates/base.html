@@ -28,17 +28,21 @@
       <strong>KtApp</strong>
     </div>
 
-    <!-- MENÚ SUPERIOR -->
-    <nav class="nav">
-      <a href="{% url 'cartera:dashboard' %}"
-         class="nav-link {% if request.path == '/' or request.path == '/dashboard/' %}is-active{% endif %}">
-        Inicio
-      </a>
-      <a href="{% url 'cartera:clientes_list' %}"
-         class="nav-link {% if '/clientes/' in request.path %}is-active{% endif %}">
-        Clientes
-      </a>
-    </nav>
+    <!-- TODO A LA DERECHA -->
+    <div class="header-right">
+      <nav class="nav">
+        <a href="{% url 'cartera:dashboard' %}"
+           class="nav-link {% if request.path == '/' or request.path == '/dashboard/' %}is-active{% endif %}">
+          Inicio
+        </a>
+        <a href="{% url 'cartera:clientes_list' %}"
+           class="nav-link {% if '/clientes/' in request.path %}is-active{% endif %}">
+          Clientes
+        </a>
+      </nav>
+
+      <a href="{% url 'cartera:tx_create' %}" class="btn cobre sm">➕ Nueva transacción</a>
+    </div>
   </header>
 
   <main class="app-main">
@@ -48,5 +52,84 @@
   <footer class="app-footer">
     <small>© {{ now|date:"Y" }} KtApp · Todos los derechos reservados</small>
   </footer>
+
+  <style>
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      background: linear-gradient(to bottom, #F6F1EC, #EFE8E1);
+      border-bottom: 1px solid rgba(195,164,139,.3);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: #1f1f1f;
+    }
+
+    .logo-dot {
+      width: 10px;
+      height: 10px;
+      background: #CC845E;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-left: auto;
+    }
+
+    .nav {
+      display: flex;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .nav-link {
+      text-decoration: none;
+      color: #3d3d3d;
+      font-weight: 600;
+      padding: 6px 10px;
+      border-radius: 6px;
+      transition: all .2s;
+    }
+
+    .nav-link:hover {
+      background: rgba(204,132,94,0.12);
+    }
+
+    .nav-link.is-active {
+      background: #CC845E;
+      color: #fff;
+    }
+
+    .btn.cobre {
+      background: #CC845E;
+      color: #fff;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: all .2s;
+    }
+
+    .btn.cobre:hover {
+      background: #b46f4d;
+    }
+
+    .btn.sm {
+      font-size: 14px;
+      line-height: 1.1;
+    }
+  </style>
+
 </body>
 </html>

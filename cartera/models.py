@@ -97,6 +97,9 @@ class Transaccion(models.Model):
 
     @property
     def saldo_actual(self) -> float:
+        # Si la transacción está marcada como pagada, el saldo es 0
+        if self.pagado:
+            return 0.0
         return max(self.valor_a_pagar - self.total_abonos, 0.0)
 
     def clean(self):

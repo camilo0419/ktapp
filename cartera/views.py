@@ -10,9 +10,13 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, T
 from django.db.models import Q, Sum, F, Value as V, DecimalField, ExpressionWrapper
 from django.db.models.functions import Coalesce, Cast
 
+
 from .models import Cliente, Transaccion, Abono
 from .forms import ClienteForm, TransaccionForm, AbonoForm, TransaccionItemFormSet
 from .analytics import track
+from django.utils import timezone
+from datetime import date, timedelta
+
 
 
 # ========= CLIENTES =========
@@ -201,9 +205,13 @@ class TransaccionCreateView(LoginRequiredMixin, CreateView):
 
     def get_initial(self):
         ini = super().get_initial()
+        # Precargar cliente si viene en querystring
         cliente_id = self.request.GET.get("cliente")
         if cliente_id:
             ini["cliente"] = cliente_id
+        # Precargar HOY en formato ISO (YYYY-MM-DD) para <input type="date">
+        if "fecha" not in ini or not ini["fecha"]:
+            ini["fecha"] = timezone.localdate().isoformat()
         return ini
 
     def get_success_url(self):
@@ -221,14 +229,12 @@ class TransaccionCreateView(LoginRequiredMixin, CreateView):
         self.object = None
         form = self.get_form()
 
-        # Marcar filas vacías como DELETE antes de validar
-        data = _formset_marca_vacias_como_delete(request.POST, prefix="transaccionitem_set")
-        formset = TransaccionItemFormSet(data)
+        # Validar formset con los datos del POST
+        formset = TransaccionItemFormSet(request.POST)
 
         if form.is_valid() and formset.is_valid():
             return self.forms_valid(form, formset)
         return self.forms_invalid(form, formset)
-
 
     def forms_valid(self, form, formset):
         self.object = form.save()
@@ -250,11 +256,17 @@ class TransaccionCreateView(LoginRequiredMixin, CreateView):
         messages.error(self.request, "Revisa los campos.")
         return render(self.request, self.template_name, {"form": form, "formset": formset})
 
-
 class TransaccionUpdateView(LoginRequiredMixin, UpdateView):
     model = Transaccion
     form_class = TransaccionForm
     template_name = "cartera/tx_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        obj = self.get_object()
+        if obj.pagado:
+            messages.warning(request, "Esta transacción ya está pagada y no puede editarse.")
+            return redirect("cartera:clientes_detail", pk=obj.cliente_id)
+        return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
         return reverse_lazy("cartera:clientes_detail", args=[self.object.cliente_id])
@@ -303,8 +315,15 @@ class TransaccionUpdateView(LoginRequiredMixin, UpdateView):
 @login_required
 def transaccion_marcar_pagado(request, pk):
     tx = get_object_or_404(Transaccion, pk=pk)
-    tx.marcar_pagado_ahora()
-    tx.save()
+
+    # Marcar como pagada y dejar que el save() del modelo ponga pagado_en
+    if not tx.pagado:
+        tx.pagado = True
+        tx.save(update_fields=["pagado", "pagado_en"])
+    else:
+        # Si ya estaba pagada, asegúrate de que tenga timestamp
+        tx.save(update_fields=["pagado", "pagado_en"])
+
     track(
         request, "tx_pagada", "action",
         etiqueta=f"tx_id={tx.id}",
@@ -312,6 +331,7 @@ def transaccion_marcar_pagado(request, pk):
     )
     messages.success(request, "Transacción marcada como pagada.")
     return redirect("cartera:clientes_detail", pk=tx.cliente_id)
+
 
 
 # ========= ABONOS =========
@@ -325,6 +345,12 @@ class AbonoCreateView(LoginRequiredMixin, CreateView):
         self.tx = get_object_or_404(Transaccion, pk=kwargs["tx_id"])
         return super().dispatch(request, *args, **kwargs)
 
+    def get_initial(self):
+        ini = super().get_initial()
+        ini.setdefault("fecha", timezone.localdate())
+        ini.setdefault("hora", timezone.localtime().time().replace(microsecond=0))
+        return ini
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["transaccion"] = self.tx
@@ -332,7 +358,15 @@ class AbonoCreateView(LoginRequiredMixin, CreateView):
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
+        # Vincular FK antes de validar/guardar
         form.instance.transaccion = self.tx
+
+        # ⬅️ Fuerza el valor visible del <input type="date"> en GET
+        if not form.is_bound:
+            form.fields["fecha"].initial = timezone.localdate().isoformat()  # YYYY-MM-DD
+            # (opcional) si quieres fijar también la hora visible:
+            # form.fields["hora"].initial = timezone.localtime().time().strftime("%H:%M")
+
         return form
 
     def form_valid(self, form):
@@ -347,6 +381,7 @@ class AbonoCreateView(LoginRequiredMixin, CreateView):
 
     def get_success_url(self):
         return reverse_lazy("cartera:clientes_detail", args=[self.tx.cliente_id])
+
 
 
 @login_required
@@ -367,77 +402,240 @@ def abono_delete(request, pk):
 
 # ========= DASHBOARD =========
 
+# views.py (solo la clase)
+from datetime import date, timedelta
+from decimal import Decimal
+
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q, Sum, F, Value as V, DecimalField, ExpressionWrapper
+from django.db.models.functions import Coalesce, Cast
+from django.utils import timezone
+from django.views.generic import TemplateView
+
+from .models import Cliente, Transaccion
+from calendar import monthrange
+
+def _month_bounds(ref: date):
+    """Inicio y fin (inclusive) del mes de 'ref'."""
+    start = ref.replace(day=1)
+    last_day = monthrange(ref.year, ref.month)[1]
+    end = ref.replace(day=last_day)
+    return start, end
+
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = "cartera/dashboard.html"
 
+    # ---------- Helpers de fechas ----------
+    def _resolve_period(self, GET):
+        """
+        Devuelve (d1, d2, mes_code) donde d1/d2 son fechas (date) inclusive.
+        mes: act | prev | year | custom
+        """
+        today = timezone.localdate()
+
+        mes = (GET.get("mes") or "act").strip()
+        raw_d1 = (GET.get("desde") or "").strip()
+        raw_d2 = (GET.get("hasta") or "").strip()
+
+        if mes in ("act", "prev", "year"):
+            if mes == "act":
+                d1, d2 = _month_bounds(today)
+            elif mes == "prev":
+                prev_month = (today.replace(day=1) - timedelta(days=1))
+                d1, d2 = _month_bounds(prev_month)
+            else:  # year
+                d1 = date(today.year, 1, 1)
+                d2 = date(today.year, 12, 31)
+        else:
+            # custom / cuando vengan fechas manuales
+            try:
+                d1 = date.fromisoformat(raw_d1)
+            except Exception:
+                d1 = today.replace(day=1)
+            try:
+                d2 = date.fromisoformat(raw_d2)
+            except Exception:
+                d2 = _month_bounds(today)[1]
+            mes = "custom"
+
+        # Normaliza: si usuario puso desde>hasta, corrige
+        if d1 > d2:
+            d1, d2 = d2, d1
+        return d1, d2, mes
+
+    # ---------- Vista ----------
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
 
+        # --- Filtros GET ---
+        cliente_id = (self.request.GET.get("cliente") or "").strip()
+        d1, d2, mes_code = self._resolve_period(self.request.GET)
+
+        # --- Campos y expresiones comunes ---
         dec = DecimalField(max_digits=14, decimal_places=2)
         zero = V(Decimal("0.00"), output_field=dec)
 
-        base_tx = ExpressionWrapper(
+        # Sobre Transaccion.items
+        base_it_tx = ExpressionWrapper(
             F("items__precio_unitario") * F("items__cantidad"),
             output_field=dec,
         )
-        desc_pct_tx = Cast(F("items__descuento"), output_field=dec)
-        desc_num_tx = ExpressionWrapper(base_tx * desc_pct_tx, output_field=dec)
+        descpct_it_tx = Cast(F("items__descuento"), output_field=dec)  # 10|20|30 o None
+        descnum_it_tx = ExpressionWrapper(base_it_tx * descpct_it_tx, output_field=dec)
 
-        base_p = Transaccion.objects.aggregate(
-            s=Coalesce(Sum(base_tx, filter=Q(pagado=False), output_field=dec), zero)
-        )["s"] or Decimal("0.00")
-        desc_num_p = Transaccion.objects.aggregate(
-            s=Coalesce(Sum(desc_num_tx, filter=Q(pagado=False), output_field=dec), zero)
-        )["s"] or Decimal("0.00")
-        abonos_p = Transaccion.objects.aggregate(
-            s=Coalesce(Sum("abonos__valor", filter=Q(pagado=False), output_field=dec), zero)
-        )["s"] or Decimal("0.00")
-        total_pendiente = base_p - (desc_num_p / Decimal("100.00")) - abonos_p
-
-        base_g = Transaccion.objects.aggregate(
-            s=Coalesce(Sum(base_tx, filter=Q(pagado=True), output_field=dec), zero)
-        )["s"] or Decimal("0.00")
-        desc_num_g = Transaccion.objects.aggregate(
-            s=Coalesce(Sum(desc_num_tx, filter=Q(pagado=True), output_field=dec), zero)
-        )["s"] or Decimal("0.00")
-        total_pagado = base_g - (desc_num_g / Decimal("100.00"))
-
-        base_cli = ExpressionWrapper(
+        # Sobre Cliente -> transacciones__items
+        base_it_cli = ExpressionWrapper(
             F("transacciones__items__precio_unitario") * F("transacciones__items__cantidad"),
             output_field=dec,
         )
-        desc_pct_cli = Cast(F("transacciones__items__descuento"), output_field=dec)
-        desc_num_cli = ExpressionWrapper(base_cli * desc_pct_cli, output_field=dec)
+        descpct_it_cli = Cast(F("transacciones__items__descuento"), output_field=dec)
+        descnum_it_cli = ExpressionWrapper(base_it_cli * descpct_it_cli, output_field=dec)
 
-        clientes = (
+        # Filtros de cliente
+        q_cli_tx = Q()
+        q_cli_cli = Q()
+        if cliente_id.isdigit():
+            q_cli_tx &= Q(cliente_id=int(cliente_id))
+            q_cli_cli &= Q(id=int(cliente_id))
+
+        # ---------------- KPIs sin filtro de fecha ----------------
+        # Valor pendiente (saldo vivo) y Facturas pendientes
+        pend_base = Transaccion.objects.filter(q_cli_tx).aggregate(
+            s=Coalesce(Sum(base_it_tx, filter=Q(pagado=False), output_field=dec), zero)
+        )["s"] or Decimal("0")
+        pend_descnum = Transaccion.objects.filter(q_cli_tx).aggregate(
+            s=Coalesce(Sum(descnum_it_tx, filter=Q(pagado=False), output_field=dec), zero)
+        )["s"] or Decimal("0")
+        pend_abonos = Transaccion.objects.filter(q_cli_tx).aggregate(
+            s=Coalesce(Sum("abonos__valor", filter=Q(pagado=False), output_field=dec), zero)
+        )["s"] or Decimal("0")
+        valor_pendiente = pend_base - (pend_descnum / Decimal("100")) - pend_abonos
+
+        facturas_pendientes = Transaccion.objects.filter(q_cli_tx, pagado=False).distinct().count()
+
+        # ---------------- KPIs con filtro de fecha ----------------
+        tx_period_qs = (
+            Transaccion.objects
+            .filter(q_cli_tx, fecha__gte=d1, fecha__lte=d2)
+            .distinct()
+        )
+        base_per = tx_period_qs.aggregate(
+            s=Coalesce(Sum(base_it_tx, output_field=dec), zero)
+        )["s"] or Decimal("0")
+        descnum_per = tx_period_qs.aggregate(
+            s=Coalesce(Sum(descnum_it_tx, output_field=dec), zero)
+        )["s"] or Decimal("0")
+        ventas_periodo = base_per - (descnum_per / Decimal("100"))
+        tx_periodo = tx_period_qs.count()
+
+        # Mejor cliente en el período (sumando ventas dentro del rango y cliente=Todos)
+        mejor_cliente_nombre = "Sin datos en el período."
+        mejor_cliente_total = Decimal("0")
+        mejor_qs = (
             Cliente.objects
             .annotate(
-                pend_base=Coalesce(Sum(base_cli, filter=Q(transacciones__pagado=False), output_field=dec), zero),
-                pend_desc_num=Coalesce(Sum(desc_num_cli, filter=Q(transacciones__pagado=False), output_field=dec), zero),
-                pend_abn=Coalesce(Sum("transacciones__abonos__valor", filter=Q(transacciones__pagado=False), output_field=dec), zero),
-                pag_base=Coalesce(Sum(base_cli, filter=Q(transacciones__pagado=True), output_field=dec), zero),
-                pag_desc_num=Coalesce(Sum(desc_num_cli, filter=Q(transacciones__pagado=True), output_field=dec), zero),
+                tot_base=Coalesce(Sum(
+                    base_it_cli,
+                    filter=Q(transacciones__fecha__gte=d1, transacciones__fecha__lte=d2),
+                    output_field=dec
+                ), zero),
+                tot_desc=Coalesce(Sum(
+                    descnum_it_cli,
+                    filter=Q(transacciones__fecha__gte=d1, transacciones__fecha__lte=d2),
+                    output_field=dec
+                ), zero),
             )
-            .values("id", "nombre", "pend_base", "pend_desc_num", "pend_abn", "pag_base", "pag_desc_num")
+            .annotate(tot_per=ExpressionWrapper(F("tot_base") - (F("tot_desc") / Decimal("100")), output_field=dec))
+            .order_by("-tot_per")
+            .values("nombre", "tot_per")
         )
+        if mejor_qs:
+            top = next((r for r in mejor_qs if (r["tot_per"] or Decimal("0")) > 0), None)
+            if top:
+                mejor_cliente_nombre = top["nombre"]
+                mejor_cliente_total = top["tot_per"] or Decimal("0")
 
-        resumen = []
-        for c in clientes:
-            pendiente = (c["pend_base"] or Decimal("0")) - ((c["pend_desc_num"] or Decimal("0")) / Decimal("100")) - (c["pend_abn"] or Decimal("0"))
-            pagado = (c["pag_base"] or Decimal("0")) - ((c["pag_desc_num"] or Decimal("0")) / Decimal("100"))
-            resumen.append({
-                "id": c["id"],
-                "nombre": c["nombre"],
-                "pendiente": pendiente,
-                "pagado": pagado,
-            })
-        resumen.sort(key=lambda r: r["pendiente"], reverse=True)
-        resumen = resumen[:50]
+        # Cliente con más cartera (sin filtro de fecha)
+        cartera_qs = (
+            Cliente.objects.filter(q_cli_cli)
+            .annotate(
+                pend_base=Coalesce(Sum(base_it_cli, filter=Q(transacciones__pagado=False), output_field=dec), zero),
+                pend_desc=Coalesce(Sum(descnum_it_cli, filter=Q(transacciones__pagado=False), output_field=dec), zero),
+                pend_abn=Coalesce(Sum("transacciones__abonos__valor", filter=Q(transacciones__pagado=False), output_field=dec), zero),
+            )
+            .annotate(pend=ExpressionWrapper(F("pend_base") - (F("pend_desc") / Decimal("100")) - F("pend_abn"), output_field=dec))
+            .order_by("-pend")
+            .values("nombre", "pend")
+        )
+        if cartera_qs:
+            topc = cartera_qs[0]
+            cliente_mas_cartera_nombre = topc["nombre"]
+            cliente_mas_cartera_total = topc["pend"] or Decimal("0")
+        else:
+            cliente_mas_cartera_nombre = "Sin pendientes."
+            cliente_mas_cartera_total = Decimal("0")
+
+        # Tabla: Pendiente total por cliente (filtra por cliente si se selecciona)
+        resumen_qs = (
+            Cliente.objects.filter(q_cli_cli)
+            .annotate(
+                pend_base=Coalesce(Sum(base_it_cli, filter=Q(transacciones__pagado=False), output_field=dec), zero),
+                pend_desc=Coalesce(Sum(descnum_it_cli, filter=Q(transacciones__pagado=False), output_field=dec), zero),
+                pend_abn=Coalesce(Sum("transacciones__abonos__valor", filter=Q(transacciones__pagado=False), output_field=dec), zero),
+            )
+            .annotate(pendiente=ExpressionWrapper(F("pend_base") - (F("pend_desc") / Decimal("100")) - F("pend_abn"), output_field=dec))
+            .values("id", "nombre", "pendiente")
+            .order_by("-pendiente", "nombre")
+        )
+        resumen_por_cliente = list(resumen_qs)
+
+        # Sincroniza KPI con tabla (para que jamás veas $ vacío)
+        valor_pendiente_tabla = sum((r["pendiente"] or Decimal("0")) for r in resumen_por_cliente)
+        # Si quieres que el KPI siga estrictamente la tabla, usa:
+        valor_pendiente = valor_pendiente_tabla
+
+        # Select de cliente
+        clientes_for_select = Cliente.objects.order_by("nombre").values("id", "nombre")
 
         ctx.update({
-            "total_pendiente": total_pendiente,
-            "total_pagado": total_pagado,
-            "resumen_por_cliente": resumen,
+            # filtros actuales
+            "f_cliente": int(cliente_id) if cliente_id.isdigit() else "",
+            "f_mes": mes_code,
+            "f_desde": d1,
+            "f_hasta": d2,
+
+            # KPIs
+            "valor_pendiente": valor_pendiente,
+            "facturas_pendientes": facturas_pendientes,
+            "ventas_periodo": ventas_periodo,
+            "tx_periodo": tx_periodo,
+            "mejor_cliente_nombre": mejor_cliente_nombre,
+            "mejor_cliente_total": mejor_cliente_total,
+            "cliente_mas_cartera_nombre": cliente_mas_cartera_nombre,
+            "cliente_mas_cartera_total": cliente_mas_cartera_total,
+
+            # tabla
+            "resumen_por_cliente": resumen_por_cliente,
+
+            # selects
+            "clientes_for_select": clientes_for_select,
+
+            # otros
             "clientes_count": Cliente.objects.count(),
         })
+        return ctx
+
+    
+
+class TransaccionDetailView(LoginRequiredMixin, DetailView):
+    model = Transaccion
+    template_name = "cartera/tx_detail.html"
+    context_object_name = "tx"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        tx = self.object
+        ctx["items"] = tx.items.all()
+        ctx["abonos"] = tx.abonos.all()
         return ctx

@@ -22,4 +22,7 @@ urlpatterns = [
     # ABONOS
     path("tx/<int:tx_id>/abono/nuevo/", views.AbonoCreateView.as_view(), name="abono_create"),
     path("abono/<int:pk>/eliminar/", views.abono_delete, name="abono_delete"),
+
+    path("tx/<int:pk>/", views.TransaccionDetailView.as_view(), name="tx_detail"),
+
 ]

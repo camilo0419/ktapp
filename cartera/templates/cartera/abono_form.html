@@ -5,15 +5,26 @@
   <h2 style="margin:0 0 6px;">Registrar abono</h2>
   <form method="post" class="grid" id="abono-form">
     {% csrf_token %}
+    {{ form.non_field_errors }}
+
     <label>Valor {{ form.valor }}</label>
+    {% if form.errors.valor %}<small class="error">{{ form.errors.valor.0 }}</small>{% endif %}
+
     <label>Método {{ form.metodo }}</label>
+    {% if form.errors.metodo %}<small class="error">{{ form.errors.metodo.0 }}</small>{% endif %}
+
     <div class="row">
       <label>Fecha {{ form.fecha }}</label>
+      {% if form.errors.fecha %}<small class="error">{{ form.errors.fecha.0 }}</small>{% endif %}
       <label>Hora {{ form.hora }}</label>
+      {% if form.errors.hora %}<small class="error">{{ form.errors.hora.0 }}</small>{% endif %}
     </div>
+
     <label>Notas {{ form.notas }}</label>
+    {% if form.errors.notas %}<small class="error">{{ form.errors.notas.0 }}</small>{% endif %}
+
     <div class="row">
-      <button class="btn">Guardar abono</button>
+      <button class="btn" type="submit">Guardar abono</button>
       <a class="btn alt" href="javascript:history.back()">Cancelar</a>
     </div>
   </form>
@@ -23,6 +34,15 @@
 {% block extra_js %}
 <script>
 (function(){
+  // Si el input date está vacío, precargar con la fecha de hoy (YYYY-MM-DD)
+  const fecha = document.getElementById("id_fecha");
+  if (fecha && !fecha.value) {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    fecha.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+
+  // Confirmación al enviar (igual que tenías)
   const form = document.getElementById("abono-form");
   if (form){
     form.addEventListener("submit", function(e){
