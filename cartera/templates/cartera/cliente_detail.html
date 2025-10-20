@@ -10,8 +10,11 @@
     <p style="margin:0 0 8px;"><small>{{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}</small></p>
     <p style="margin:0 0 12px;">Saldo pendiente total: <strong>{{ total_pendiente|cop }}</strong></p>
     <div class="row" style="gap:8px;flex-wrap:wrap;">
-      <a class="btn cobre" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
+      <a class="btn cobre" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Transacción</a>
       <a class="btn alt" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
+      <a href="{% url 'cartera:estado_cuenta' obj.id %}" class="btn cobre outline" style="width:100%;text-align:center;">
+        📄 Generar estado de cuenta
+      </a>
     </div>
   </div>
 

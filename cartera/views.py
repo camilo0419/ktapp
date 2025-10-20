@@ -173,6 +173,24 @@ def _formset_marca_vacias_como_delete(post_data, prefix):
     return data
 
 
+@login_required
+def estado_cuenta(request, pk):
+    cliente = get_object_or_404(Cliente, pk=pk)
+    tipo = request.GET.get("tipo")  # natura, accesorios, otros, o None
+    transacciones = cliente.transacciones.all()
+    if tipo:
+        transacciones = transacciones.filter(tipo=tipo)
+    transacciones = transacciones.order_by('-fecha')
+
+    return render(request, "cartera/estado_cuenta.html", {
+        "cliente": cliente,
+        "tipo": tipo,
+        "transacciones": transacciones,
+        "hoy": timezone.localdate(),
+    })
+
+
+
 # ========= helpers para formset =========
 
 def _marcar_filas_vacias(formset):
@@ -558,7 +576,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         })
         return ctx
 
-    
+
 
 class TransaccionDetailView(LoginRequiredMixin, DetailView):
     model = Transaccion
@@ -606,3 +624,5 @@ class TransaccionDeleteView(LoginRequiredMixin, DeleteView):
     def get_success_url(self):
         # redirigir al detalle del cliente después del delete
         return reverse_lazy("cartera:clientes_detail", args=[self._cliente_id])
+
+

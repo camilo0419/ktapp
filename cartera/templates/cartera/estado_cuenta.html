@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+{% load currency %}
+{% block title %}Estado de cuenta - {{ cliente.nombre }}{% endblock %}
+{% block content %}
+
+<div class="card estado-cuenta">
+  <div class="header-ec">
+    <div class="logo">
+      <img src="{% static 'ktapp/icons/favicon-96x96.png' %}" alt="Logo" width="60" height="60">
+      <div class="tit">
+        <h1>Estado de cuenta</h1>
+        <p class="fecha">Generado el {{ hoy|date:"d \\d\\e F \\d\\e Y" }}</p>
+      </div>
+    </div>
+
+    <div class="cliente-info">
+      <h2>{{ cliente.nombre }}</h2>
+      {% if cliente.telefono %}<p>📞 {{ cliente.telefono }}</p>{% endif %}
+      {% if cliente.correo %}<p>✉️ {{ cliente.correo }}</p>{% endif %}
+      {% if tipo %}
+        <p><strong>Tipo seleccionado:</strong> {{ tipo|title }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <h3 style="margin-top:0;">Detalle de transacciones</h3>
+
+  {% for tx in transacciones %}
+  <div class="tx-block">
+    <div class="tx-head">
+      <div>
+        <strong>{{ tx.get_tipo_display }}</strong> · {{ tx.fecha|date:"Y-m-d" }}
+      </div>
+      {% if tx.pagado %}
+        <span class="estado ok">Pagado</span>
+      {% else %}
+        <span class="estado warn">Pendiente</span>
+      {% endif %}
+    </div>
+
+    {% if tx.campania %}
+    <p class="campania">Campaña: {{ tx.campania }}</p>
+    {% endif %}
+    {% if tx.descripcion %}
+    <p class="descripcion">{{ tx.descripcion }}</p>
+    {% endif %}
+
+    <table class="tabla-items">
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="right">P. U.</th>
+          <th class="right">Cant.</th>
+          <th class="right">Desc %</th>
+          <th class="right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for it in tx.items.all %}
+        <tr>
+          <td>{{ it.producto }}</td>
+          <td class="right">{{ it.precio_unitario|cop }}</td>
+          <td class="right">{{ it.cantidad }}</td>
+          <td class="right">{% if it.descuento %}{{ it.descuento }}{% else %}—{% endif %}</td>
+          <td class="right">{{ it.total_linea|cop }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="totales">
+      <div><span>Valor:</span> <strong>{{ tx.valor_a_pagar|cop }}</strong></div>
+      <div><span>Abonado:</span> <strong>{{ tx.total_abonos|cop }}</strong></div>
+      <div><span>Saldo:</span> <strong>{{ tx.saldo_actual|cop }}</strong></div>
+    </div>
+
+    <hr class="tx-sep">
+  </div>
+  {% empty %}
+  <p><em>No hay transacciones registradas.</em></p>
+  {% endfor %}
+
+  <div class="footer-ec">
+    <h3>Total pendiente: <span style="color:#AB4226;">{{ cliente.saldo_pendiente|cop }}</span></h3>
+    <p>Gracias por tu confianza. Por favor realizar el pago a la cuenta designada (próximamente QR Bancolombia).</p>
+    <div class="qr-placeholder">
+      <img src="{% static 'ktapp/img/qr_placeholder.png' %}" alt="QR Bancolombia" width="130" height="130">
+      <p><small>Escanea para realizar tu pago</small></p>
+    </div>
+  </div>
+</div>
+
+<style>
+.estado-cuenta {
+  max-width: 900px; margin: 0 auto; background: #fffdfb;
+  border: 1px solid #eadfd4; box-shadow: 0 4px 20px rgba(0,0,0,.05);
+  padding: 30px; border-radius: 16px;
+}
+.header-ec { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; }
+.logo { display:flex; align-items:center; gap:16px; }
+.logo h1 { margin:0; font-size:1.8rem; color:#3b2e25; }
+.logo .fecha { color:#715C47; font-size:.9rem; }
+.cliente-info { text-align:right; }
+.sep { border:none; border-top:1px solid #eadfd4; margin:20px 0; }
+.tx-block { margin-bottom:30px; }
+.tx-head { display:flex; justify-content:space-between; align-items:center; background:#f8f4f0; padding:8px 12px; border-radius:8px; font-weight:600; }
+.estado.ok { background:#2e7d32; color:#fff; padding:4px 10px; border-radius:999px; font-size:.85rem; }
+.estado.warn { background:#b3261e; color:#fff; padding:4px 10px; border-radius:999px; font-size:.85rem; }
+.tabla-items { width:100%; border-collapse:collapse; margin-top:10px; }
+.tabla-items th, .tabla-items td { border-bottom:1px solid #eadfd4; padding:6px 8px; }
+.tabla-items th { background:#f6f1ec; text-align:left; font-size:.9rem; }
+.tabla-items .right { text-align:right; }
+.totales { display:flex; justify-content:flex-end; gap:20px; margin-top:8px; font-size:.95rem; }
+.tx-sep { border:none; border-top:1px solid #eadfd4; margin:25px 0; }
+.footer-ec { text-align:center; margin-top:40px; }
+.qr-placeholder { margin-top:20px; display:inline-block; background:#f8f4f0; border:1px dashed #CC845E; border-radius:12px; padding:16px; }
+</style>
+{% endblock %}
