@@ -3,62 +3,50 @@
 {% block title %}TX #{{ tx.id }} - {{ tx.cliente.nombre }}{% endblock %}
 {% block content %}
 
-<div class="card">
+<!-- ===== Header de la transacción ===== -->
+<div class="card tx-head">
   <h2 style="margin:0 0 8px;">Transacción #{{ tx.id }}</h2>
-  <p><strong>Cliente:</strong> {{ tx.cliente.nombre }}</p>
-  <p>
+  <p style="margin:4px 0;"><strong>Cliente:</strong> {{ tx.cliente.nombre }}</p>
+  <p style="margin:4px 0;">
     <strong>Fecha:</strong> {{ tx.fecha|date:"Y-m-d" }} ·
     <strong>Tipo:</strong> {{ tx.get_tipo_display }}
     {% if tx.campania %} · <strong>Campaña:</strong> {{ tx.campania }}{% endif %}
   </p>
-  <p><strong>Estado:</strong>
-    {% if tx.pagado %}
-      <span class="pill pill-ok">Pagado</span>
-    {% else %}
-      <span class="pill pill-warn">Pendiente</span>
-    {% endif %}
+  <p style="margin:6px 0 0;">
+    <strong>Estado:</strong>
+    {% if tx.pagado %}<span class="pill-ok">Pagado</span>{% else %}<span class="pill-warn">Pendiente</span>{% endif %}
   </p>
 
-  <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+  <div class="head-actions">
     {% if not tx.pagado %}
       <a class="btn alt" href="{% url 'cartera:tx_update' tx.id %}">Editar</a>
-      <a class="btn primary" href="{% url 'cartera:abono_create' tx.id %}">Abono</a>
-
-      <!-- Marcar pagada (POST + confirm) -->
-      <form method="post" action="{% url 'cartera:tx_pagada' tx.id %}" class="inline-form" id="form-marcar-pagada">
-        {% csrf_token %}
-        <button class="btn cobre" type="submit">Marcar pagada</button>
-      </form>
-    {% else %}
-      <!-- Si está pagada, no se muestra Editar ni Abono ni Marcar pagada -->
-      <a class="btn alt" href="{% url 'cartera:tx_update' tx.id %}" style="display:none">Editar</a>
+      <a class="btn cobre js-paid" href="{% url 'cartera:tx_pagada' tx.id %}">Marcar pagada</a>
+      <a class="btn" href="{% url 'cartera:abono_create' tx.id %}">Abono</a>
     {% endif %}
 
-    <!-- Eliminar transacción (POST + confirm), queda a la derecha -->
-    <form method="post" action="{% url 'cartera:tx_delete' tx.id %}" class="inline-form push-right" id="form-eliminar-tx">
+    <form method="post" action="{% url 'cartera:tx_delete' tx.id %}"
+          onsubmit="return confirm('¿Eliminar esta transacción? Esto afectará la cartera.');">
       {% csrf_token %}
       <button class="btn danger" type="submit">Eliminar transacción</button>
     </form>
 
-    <a class="btn" href="{% url 'cartera:clientes_detail' tx.cliente_id %}">Volver al cliente</a>
+    <a class="btn alt" href="{% url 'cartera:clientes_detail' tx.cliente_id %}">Volver al cliente</a>
   </div>
 </div>
 
+<!-- ===== Ítems ===== -->
 <div class="grid cols-2">
-  <!-- Ítems -->
-  <div class="card">
+  <section class="card">
     <h3 style="margin-top:0;">Ítems</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Producto</th>
-          <th class="right">P. U.</th>
-          <th class="right">Cant.</th>
-          <th class="right">Desc %</th>
-          <th class="right">Total</th>
-        </tr>
-      </thead>
-      <tbody>
+
+    <!-- Desktop: tabla -->
+    <div class="hide-on-mobile">
+      <table>
+        <thead><tr>
+          <th>Producto</th><th class="right">P. U.</th><th class="right">Cant.</th>
+          <th class="right">Desc %</th><th class="right">Total</th>
+        </tr></thead>
+        <tbody>
         {% for it in items %}
           <tr>
             <td>{{ it.producto }}</td>
@@ -70,25 +58,40 @@
         {% empty %}
           <tr><td colspan="5"><em>Sin ítems</em></td></tr>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
+        </tbody>
+      </table>
+    </div>
 
-  <!-- Abonos -->
-  <div class="card">
+    <!-- Móvil: cards -->
+    <div class="show-on-mobile card-list">
+      {% for it in items %}
+      <div class="touch-card item-card">
+        <div class="row"><div class="title">{{ it.producto }}</div></div>
+        <div class="i-metrics">
+          <div><span>P. U.</span><strong>{{ it.precio_unitario|cop }}</strong></div>
+          <div><span>Cant.</span><strong>{{ it.cantidad|floatformat:0|add:""|cut:"," }}</strong></div>
+          <div><span>Desc</span><strong>{% if it.descuento %}{{ it.descuento }}%{% else %}—{% endif %}</strong></div>
+          <div><span>Total</span><strong>{{ it.total_linea|cop }}</strong></div>
+        </div>
+      </div>
+      {% empty %}
+        <div class="touch-card"><em>Sin ítems</em></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- ===== Abonos ===== -->
+  <section class="card">
     <h3 style="margin-top:0;">Abonos</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Hora</th>
-          <th>Método</th>
-          <th class="right">Valor</th>
-          <th>Notas</th>
-          <th class="right">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
+
+    <!-- Desktop: tabla -->
+    <div class="hide-on-mobile">
+      <table>
+        <thead><tr>
+          <th>Fecha</th><th>Hora</th><th>Método</th>
+          <th class="right">Valor</th><th>Notas</th><th class="right">Acciones</th>
+        </tr></thead>
+        <tbody>
         {% for a in abonos %}
           <tr>
             <td>{{ a.fecha|date:"Y-m-d" }}</td>
@@ -96,71 +99,95 @@
             <td>{{ a.get_metodo_display }}</td>
             <td class="right">{{ a.valor|cop }}</td>
             <td>{{ a.notas }}</td>
-            <td class="right" style="white-space:nowrap;">
-              <a class="btn alt" href="{% url 'cartera:abono_update' a.id %}">Editar</a>
-
-              <!-- Eliminar abono (POST) -->
-              <form method="post" action="{% url 'cartera:abono_delete' a.id %}" class="inline-form form-del-abono">
+            <td class="right">
+              <a class="btn alt sm" href="{% url 'cartera:abono_update' a.id %}">Editar</a>
+              <form method="post" action="{% url 'cartera:abono_delete' a.id %}"
+                    style="display:inline;"
+                    onsubmit="return confirm('¿Eliminar este abono? Esto afectará la cartera.');">
                 {% csrf_token %}
-                <button class="btn danger" type="submit">Eliminar</button>
+                <button class="btn danger sm" type="submit">Eliminar</button>
               </form>
             </td>
           </tr>
         {% empty %}
           <tr><td colspan="6"><em>Sin abonos</em></td></tr>
         {% endfor %}
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </div>
 
+    <!-- Móvil: cards -->
+    <div class="show-on-mobile card-list">
+      {% for a in abonos %}
+      <div class="touch-card abono-card">
+        <div class="row">
+          <div class="title">{{ a.get_metodo_display }}</div>
+          <div class="right sub">{{ a.fecha|date:"Y-m-d" }} · {{ a.hora|time:"H:i" }}</div>
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <span class="k">Valor:</span>&nbsp;<span class="v">{{ a.valor|cop }}</span>
+        </div>
+        {% if a.notas %}
+        <div class="sub" style="margin-top:6px;">{{ a.notas }}</div>
+        {% endif %}
+        <div class="cta-row two">
+          <a class="btn alt" href="{% url 'cartera:abono_update' a.id %}">Editar</a>
+          <form method="post" action="{% url 'cartera:abono_delete' a.id %}"
+                onsubmit="return confirm('¿Eliminar este abono? Esto afectará la cartera.');">
+            {% csrf_token %}
+            <button class="btn danger" type="submit">Eliminar</button>
+          </form>
+        </div>
+      </div>
+      {% empty %}
+        <div class="touch-card"><em>Sin abonos</em></div>
+      {% endfor %}
+    </div>
+
+    <!-- Totales -->
     <div style="margin-top:12px;">
       <p><strong>Valor:</strong> {{ tx.valor_a_pagar|cop }}</p>
       <p><strong>Abonado:</strong> {{ tx.total_abonos|cop }}</p>
       <p><strong>Saldo:</strong> {{ tx.saldo_actual|cop }}</p>
     </div>
-  </div>
+  </section>
 </div>
 
 <style>
-/* Pills de estado */
-.pill{ display:inline-block; padding:4px 10px; border-radius:999px; color:#fff; font-weight:700; font-size:.9rem; }
-.pill-ok{ background:#2e7d32; }
-.pill-warn{ background:#b3261e; }
-
-/* Botones coherentes */
-.btn.primary, .btn.cobre { background:#C07A57; color:#fff; }
-.btn.primary:hover, .btn.cobre:hover { filter:brightness(0.95); }
-.btn.alt{ background:#fff; border:1px solid #e2d6ca; }
+/* Header acciones responsive */
+.tx-head .head-actions{
+  margin-top:12px;
+  display:flex; gap:8px; flex-wrap:wrap;
+}
 .btn.danger{ background:#b23b2e; color:#fff; }
 .btn.danger:hover{ filter:brightness(0.95); }
 
-/* Helpers */
-.inline-form{ display:inline; margin:0; }
-.push-right{ margin-left:auto; }
-.right{ text-align:right; }
+/* Ítems móvil */
+.item-card .i-metrics{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:8px;
+}
+.item-card .i-metrics div{
+  background:#f8f4f0; border:1px solid #eadfd4;
+  border-radius:12px; padding:8px 10px;
+}
+.item-card .i-metrics span{
+  display:block; font-size:11.5px; color:#6b6055; margin-bottom:2px;
+}
+.item-card .i-metrics strong{ font-size:15px; color:#1e1a16; }
+
+/* Dos columnas botones en móvil */
+.cta-row.two{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
 </style>
 
 <script>
 (function(){
-  // Confirmar "Marcar pagada"
-  const formPagada = document.getElementById('form-marcar-pagada');
-  if (formPagada){
-    formPagada.addEventListener('submit', function(ev){
-      if(!confirm('¿Marcar esta transacción como pagada?')) ev.preventDefault();
-    });
-  }
-
-  // Confirmar "Eliminar transacción"
-  const formDelTx = document.getElementById('form-eliminar-tx');
-  if (formDelTx){
-    formDelTx.addEventListener('submit', function(ev){
-      if(!confirm('¿Eliminar esta transacción? Esto afectará la cartera.')) ev.preventDefault();
-    });
-  }
-
-  // Confirmar "Eliminar abono" (todas las filas)
-  document.querySelectorAll('.form-del-abono').forEach(f=>{
-    f.addEventListener('submit', function(ev){
-      if(!confirm('¿Eliminar este abono? Esto afectará la cartera.')) ev.preventDefault();
+  // Confirmación “marcar pagada”
+  document.querySelectorAll('.js-paid').forEach(a=>{
+    a.addEventListener('click', (e)=>{
+      if(!confirm('¿Confirmas marcar esta transacción como PAGADA?')) e.preventDefault();
     });
   });
 })();

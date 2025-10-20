@@ -3,26 +3,27 @@
 {% block title %}{{ obj.nombre }} - KtApp{% endblock %}
 {% block content %}
 
+<!-- ===== Cabecera cliente + Resumen (igual) ===== -->
 <div class="grid cols-2">
   <div class="card">
-    <h2>{{ obj.nombre }}</h2>
-    <p><small>{{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}</small></p>
-    <p>Saldo pendiente total: <strong>{{ total_pendiente|cop }}</strong></p>
-    <div class="row">
-      <a class="btn" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
+    <h2 style="margin:0 0 4px;">{{ obj.nombre }}</h2>
+    <p style="margin:0 0 8px;"><small>{{ obj.telefono }}{% if obj.correo %} · {{ obj.correo }}{% endif %}</small></p>
+    <p style="margin:0 0 12px;">Saldo pendiente total: <strong>{{ total_pendiente|cop }}</strong></p>
+    <div class="row" style="gap:8px;flex-wrap:wrap;">
+      <a class="btn cobre" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Nueva transacción</a>
       <a class="btn alt" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
     </div>
   </div>
 
   <div class="card">
-    <h3>Resumen</h3>
-    <p>Pendiente: <strong>{{ total_pendiente|cop }}</strong></p>
-    <p>Pagado (monto facturado): <strong>{{ total_pagado|cop }}</strong></p>
-    <p>Total transacciones: <strong>{{ tx_count }}</strong></p>
+    <h3 style="margin-top:0;">Resumen</h3>
+    <p style="margin:.2rem 0;">Pendiente: <strong>{{ total_pendiente|cop }}</strong></p>
+    <p style="margin:.2rem 0;">Pagado (monto facturado): <strong>{{ total_pagado|cop }}</strong></p>
+    <p style="margin:.2rem 0;">Total transacciones: <strong>{{ tx_count }}</strong></p>
   </div>
 </div>
 
-<!-- ===== Desktop (tu tabla original) ===== -->
+<!-- ===== Desktop (tabla original) ===== -->
 <div class="card hide-on-mobile">
   <table class="tx-table">
     <thead>
@@ -69,7 +70,6 @@
         <td class="actions-cell">
           <div class="actions">
             <a class="btn alt sm" href="{% url 'cartera:tx_detail' t.id %}">Ver</a>
-
             {% if not t.pagado %}
               <a class="btn alt sm" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
               <a class="btn oxido sm js-paid" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
@@ -84,17 +84,19 @@
   </table>
 </div>
 
-<!-- ===== Móvil (cards táctiles) ===== -->
+<!-- ===== Móvil (cards mejoradas estilo AcarreApp) ===== -->
 <div class="card show-on-mobile">
   <h3 style="margin:0 0 10px;">Transacciones</h3>
   <div class="card-list">
     {% for t in tx_list %}
-    <div class="touch-card touchable" data-href="{% url 'cartera:tx_detail' t.id %}">
+    <article class="tx-card touch-card">
+      <!-- Encabezado -->
       <div class="row">
-        <div class="title">{{ t.get_tipo_display }}</div>
+        <div class="title">{{ t.get_tipo_display }}{% if t.campania %} · <span class="sub">Campaña {{ t.campania }}</span>{% endif %}</div>
         <div class="right sub">{{ t.fecha|date:"Y-m-d" }}</div>
       </div>
 
+      <!-- Chips de productos -->
       {% if t.items.all %}
       <div class="chips">
         {% for it in t.items.all %}
@@ -103,72 +105,83 @@
       </div>
       {% endif %}
 
-      <div class="row" style="margin-top:8px;">
-        <span class="k">Valor:</span>&nbsp;<span class="v">{{ t.valor_a_pagar|cop }}</span>
-        <span class="k" style="margin-left:12px;">Abonado:</span>&nbsp;<span class="v">{{ t.total_abonos|cop }}</span>
-        <span class="k" style="margin-left:auto;">Saldo:</span>&nbsp;<span class="v">{{ t.saldo_actual|cop }}</span>
+      <!-- Métricas 3 columnas -->
+      <div class="metrics">
+        <div><span>Valor</span><strong>{{ t.valor_a_pagar|cop }}</strong></div>
+        <div><span>Abonado</span><strong>{{ t.total_abonos|cop }}</strong></div>
+        <div><span>Saldo</span><strong>{{ t.saldo_actual|cop }}</strong></div>
       </div>
 
+      <!-- Estado + ID -->
       <div class="row" style="margin-top:8px;">
-        {% if t.pagado %}<span class="pill-ok">Pagado</span>{% else %}<span class="pill-warn">Pendiente</span>{% endif %}
+        {% if t.pagado %}
+          <span class="pill-ok">Pagado</span>
+        {% else %}
+          <span class="pill-warn">Pendiente</span>
+        {% endif %}
         <span class="sub" style="margin-left:auto;">#{{ t.id }}</span>
       </div>
 
-      <div class="cta-row">
+      <!-- CTA -->
+      <div class="cta-row two">
         <a class="btn alt" href="{% url 'cartera:tx_detail' t.id %}">Ver</a>
         {% if not t.pagado %}
           <a class="btn cobre" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
         {% endif %}
       </div>
-    </div>
+    </article>
     {% empty %}
-    <div class="touch-card">Sin transacciones.</div>
+      <div class="touch-card">Sin transacciones.</div>
     {% endfor %}
   </div>
 </div>
 
 <style>
-/* === Columnas base === */
+/* ===== tabla desktop (igual) ===== */
 .tx-table .w-date{ width:120px; }
 .tx-table .nowrap{ white-space:nowrap; }
 .tx-table td{ vertical-align:middle; }
-
-/* Columna de Acciones: compacta y centrada */
 .tx-table .w-actions{ width:160px; text-align:center; }
 .actions-cell{ text-align:center; }
-.actions{
-  display:inline-flex; gap:6px; align-items:center; justify-content:center;
-  flex-wrap:wrap; max-width:160px;
-}
-
-/* Botones compactos */
+.actions{ display:inline-flex; gap:6px; align-items:center; justify-content:center; flex-wrap:wrap; max-width:160px; }
 .btn.sm{ padding:6px 10px; font-size:12.5px; line-height:1.1; border-radius:8px; min-width:auto; }
-
-/* Chips de productos (debajo de la descripción) */
 .items-mini{ margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; }
-.chip{
-  display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px;
-  color:#715C47; background:rgba(195,164,139,.20); border:1px solid rgba(195,164,139,.35);
-}
-
-/* Pills suaves (paleta) */
+.chip{ display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; color:#715C47; background:rgba(195,164,139,.20); border:1px solid rgba(195,164,139,.35); }
 .pill.soft{ display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
 .pill.soft.ok{ color:#2e5b3a; background:rgba(113,92,71,0.10); border:1px solid rgba(113,92,71,0.18); }
 .pill.soft.warn{ color:#7a2315; background:rgba(171,66,38,0.10); border:1px solid rgba(171,66,38,0.18); }
-
-/* Dinero */
 .right{ text-align:right; }
 .money{ font-weight:500; color:#3c3c3c; font-size:14px; }
 
-/* Botones con paleta */
-.btn.cobre{ background:#CC845E; color:#fff; }
-.btn.oxido{ background:#AB4226; color:#fff; }
-.btn:disabled{ opacity:.55; cursor:not-allowed; }
+/* ===== cards móvil mejoradas ===== */
+.tx-card .metrics{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:10px;
+}
+.tx-card .metrics div{
+  background:#f8f4f0;
+  border:1px solid #eadfd4;
+  border-radius:12px;
+  padding:8px 10px;
+}
+.tx-card .metrics span{
+  display:block;
+  font-size:11.5px;
+  color:#6b6055;
+  margin-bottom:2px;
+}
+.tx-card .metrics strong{
+  font-size:15px;
+  color:#1e1a16;
+}
+.cta-row.two{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
 </style>
 
 <script>
 (function(){
-  // Confirmación al marcar pagada (en la tabla desktop)
+  // Confirmación al marcar pagada (solo si hay enlace en tabla)
   document.querySelectorAll('.js-paid').forEach(a=>{
     a.addEventListener('click', function(e){
       if(!confirm('¿Confirmas marcar esta transacción como PAGADA?')) e.preventDefault();
