@@ -19,6 +19,13 @@ class ClienteForm(forms.ModelForm):
 
 
 class TransaccionForm(forms.ModelForm):
+    # Asegura el formato del <input type="date">
+    fecha = forms.DateField(
+        required=True,
+        input_formats=["%Y-%m-%d"],
+        widget=forms.DateInput(attrs={"type": "date", "class": "input"})
+    )
+
     class Meta:
         model = Transaccion
         fields = ["cliente", "tipo", "campania", "fecha", "hora", "pagado"]
@@ -26,7 +33,6 @@ class TransaccionForm(forms.ModelForm):
             "cliente": forms.Select(attrs={"class": "input"}),
             "tipo": forms.Select(attrs={"class": "input", "id": "id_tipo"}),
             "campania": forms.TextInput(attrs={"class": "input", "placeholder": "# Campaña", "id": "id_campania"}),
-            "fecha": forms.DateInput(attrs={"type": "date", "class": "input"}),
             "hora": forms.HiddenInput(),
             "pagado": forms.CheckboxInput(attrs={"class": "checkbox", "id": "id_pagado"}),
         }
@@ -34,9 +40,14 @@ class TransaccionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["hora"].required = False
-        # ⇩ Precargar hoy solo en creación (no bound) si no viene inicial
+
+        # Crear: precargar hoy
         if not self.is_bound and not self.instance.pk and not self.initial.get("fecha"):
             self.initial["fecha"] = timezone.localdate()
+
+        # Editar (GET): pintar la fecha existente en formato YYYY-MM-DD
+        if not self.is_bound and self.instance.pk and getattr(self.instance, "fecha", None):
+            self.initial["fecha"] = self.instance.fecha.strftime("%Y-%m-%d")
 
     def clean(self):
         cleaned = super().clean()

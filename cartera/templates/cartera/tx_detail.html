@@ -6,59 +6,108 @@
 <div class="card">
   <h2 style="margin:0 0 8px;">Transacción #{{ tx.id }}</h2>
   <p><strong>Cliente:</strong> {{ tx.cliente.nombre }}</p>
-  <p><strong>Fecha:</strong> {{ tx.fecha|date:"Y-m-d" }} · <strong>Tipo:</strong> {{ tx.get_tipo_display }}
+  <p>
+    <strong>Fecha:</strong> {{ tx.fecha|date:"Y-m-d" }} ·
+    <strong>Tipo:</strong> {{ tx.get_tipo_display }}
     {% if tx.campania %} · <strong>Campaña:</strong> {{ tx.campania }}{% endif %}
   </p>
   <p><strong>Estado:</strong>
-    {% if tx.pagado %}<span class="pill" style="background:#2e7d32;">Pagado</span>
-    {% else %}<span class="pill" style="background:#c62828;">Pendiente</span>{% endif %}
-  </p>
-  <div class="row" style="gap:8px;margin-top:10px;">
-    <a class="btn alt" href="{% url 'cartera:tx_update' tx.id %}">Editar</a>
-    {% if not tx.pagado %}
-      <a class="btn" href="{% url 'cartera:abono_create' tx.id %}">Abono</a>
-      <a class="btn" href="{% url 'cartera:tx_pagada' tx.id %}">Marcar pagada</a>
+    {% if tx.pagado %}
+      <span class="pill pill-ok">Pagado</span>
+    {% else %}
+      <span class="pill pill-warn">Pendiente</span>
     {% endif %}
+  </p>
+
+  <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+    {% if not tx.pagado %}
+      <a class="btn alt" href="{% url 'cartera:tx_update' tx.id %}">Editar</a>
+      <a class="btn primary" href="{% url 'cartera:abono_create' tx.id %}">Abono</a>
+
+      <!-- Marcar pagada (POST + confirm) -->
+      <form method="post" action="{% url 'cartera:tx_pagada' tx.id %}" class="inline-form" id="form-marcar-pagada">
+        {% csrf_token %}
+        <button class="btn cobre" type="submit">Marcar pagada</button>
+      </form>
+    {% else %}
+      <!-- Si está pagada, no se muestra Editar ni Abono ni Marcar pagada -->
+      <a class="btn alt" href="{% url 'cartera:tx_update' tx.id %}" style="display:none">Editar</a>
+    {% endif %}
+
+    <!-- Eliminar transacción (POST + confirm), queda a la derecha -->
+    <form method="post" action="{% url 'cartera:tx_delete' tx.id %}" class="inline-form push-right" id="form-eliminar-tx">
+      {% csrf_token %}
+      <button class="btn danger" type="submit">Eliminar transacción</button>
+    </form>
+
     <a class="btn" href="{% url 'cartera:clientes_detail' tx.cliente_id %}">Volver al cliente</a>
   </div>
 </div>
 
 <div class="grid cols-2">
+  <!-- Ítems -->
   <div class="card">
     <h3 style="margin-top:0;">Ítems</h3>
     <table>
-      <thead><tr><th>Producto</th><th class="right">P. U.</th><th class="right">Cant.</th><th class="right">Desc %</th><th class="right">Total</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="right">P. U.</th>
+          <th class="right">Cant.</th>
+          <th class="right">Desc %</th>
+          <th class="right">Total</th>
+        </tr>
+      </thead>
       <tbody>
         {% for it in items %}
-        <tr>
-          <td>{{ it.producto }}</td>
-          <td class="right">{{ it.precio_unitario|cop }}</td>
-          <td class="right">{{ it.cantidad|floatformat:0|add:""|cut:"," }}</td>
-          <td class="right">{% if it.descuento %}{{ it.descuento }}%{% else %}—{% endif %}</td>
-          <td class="right">{{ it.total_linea|cop }}</td>
-        </tr>
+          <tr>
+            <td>{{ it.producto }}</td>
+            <td class="right">{{ it.precio_unitario|cop }}</td>
+            <td class="right">{{ it.cantidad|floatformat:0|add:""|cut:"," }}</td>
+            <td class="right">{% if it.descuento %}{{ it.descuento }}%{% else %}—{% endif %}</td>
+            <td class="right">{{ it.total_linea|cop }}</td>
+          </tr>
         {% empty %}
-        <tr><td colspan="5"><em>Sin ítems</em></td></tr>
+          <tr><td colspan="5"><em>Sin ítems</em></td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
+  <!-- Abonos -->
   <div class="card">
     <h3 style="margin-top:0;">Abonos</h3>
     <table>
-      <thead><tr><th>Fecha</th><th>Hora</th><th>Método</th><th class="right">Valor</th><th>Notas</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Método</th>
+          <th class="right">Valor</th>
+          <th>Notas</th>
+          <th class="right">Acciones</th>
+        </tr>
+      </thead>
       <tbody>
         {% for a in abonos %}
-        <tr>
-          <td>{{ a.fecha|date:"Y-m-d" }}</td>
-          <td>{{ a.hora|time:"H:i" }}</td>
-          <td>{{ a.get_metodo_display }}</td>
-          <td class="right">{{ a.valor|cop }}</td>
-          <td>{{ a.notas }}</td>
-        </tr>
+          <tr>
+            <td>{{ a.fecha|date:"Y-m-d" }}</td>
+            <td>{{ a.hora|time:"H:i" }}</td>
+            <td>{{ a.get_metodo_display }}</td>
+            <td class="right">{{ a.valor|cop }}</td>
+            <td>{{ a.notas }}</td>
+            <td class="right" style="white-space:nowrap;">
+              <a class="btn alt" href="{% url 'cartera:abono_update' a.id %}">Editar</a>
+
+              <!-- Eliminar abono (POST) -->
+              <form method="post" action="{% url 'cartera:abono_delete' a.id %}" class="inline-form form-del-abono">
+                {% csrf_token %}
+                <button class="btn danger" type="submit">Eliminar</button>
+              </form>
+            </td>
+          </tr>
         {% empty %}
-        <tr><td colspan="5"><em>Sin abonos</em></td></tr>
+          <tr><td colspan="6"><em>Sin abonos</em></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -70,5 +119,51 @@
     </div>
   </div>
 </div>
+
+<style>
+/* Pills de estado */
+.pill{ display:inline-block; padding:4px 10px; border-radius:999px; color:#fff; font-weight:700; font-size:.9rem; }
+.pill-ok{ background:#2e7d32; }
+.pill-warn{ background:#b3261e; }
+
+/* Botones coherentes */
+.btn.primary, .btn.cobre { background:#C07A57; color:#fff; }
+.btn.primary:hover, .btn.cobre:hover { filter:brightness(0.95); }
+.btn.alt{ background:#fff; border:1px solid #e2d6ca; }
+.btn.danger{ background:#b23b2e; color:#fff; }
+.btn.danger:hover{ filter:brightness(0.95); }
+
+/* Helpers */
+.inline-form{ display:inline; margin:0; }
+.push-right{ margin-left:auto; }
+.right{ text-align:right; }
+</style>
+
+<script>
+(function(){
+  // Confirmar "Marcar pagada"
+  const formPagada = document.getElementById('form-marcar-pagada');
+  if (formPagada){
+    formPagada.addEventListener('submit', function(ev){
+      if(!confirm('¿Marcar esta transacción como pagada?')) ev.preventDefault();
+    });
+  }
+
+  // Confirmar "Eliminar transacción"
+  const formDelTx = document.getElementById('form-eliminar-tx');
+  if (formDelTx){
+    formDelTx.addEventListener('submit', function(ev){
+      if(!confirm('¿Eliminar esta transacción? Esto afectará la cartera.')) ev.preventDefault();
+    });
+  }
+
+  // Confirmar "Eliminar abono" (todas las filas)
+  document.querySelectorAll('.form-del-abono').forEach(f=>{
+    f.addEventListener('submit', function(ev){
+      if(!confirm('¿Eliminar este abono? Esto afectará la cartera.')) ev.preventDefault();
+    });
+  });
+})();
+</script>
 
 {% endblock %}

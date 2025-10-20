@@ -1,16 +1,21 @@
-# ktapp/settings.py
+# ktapp/ktapp/settings.py — LOCAL (desarrollo)
 from pathlib import Path
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Seguridad (ajusta en producción)
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-secret-key-cambia-esto")
-DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
+# ---- Local por defecto
+DEBUG = True
+SECRET_KEY = "dev-secret-key-solo-local"
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "[::1]"]
 
-ALLOWED_HOSTS = ["kathem.pythonanywhere.com"]
-CSRF_TRUSTED_ORIGINS = ["https://kathem.pythonanywhere.com"]
+# CSRF confiando en orígenes locales
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+]
 
+# ---- Apps
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -18,9 +23,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Apps del proyecto
     "cartera",
 ]
 
+# ---- Middleware
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -32,12 +39,13 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "ktapp.urls"
+WSGI_APPLICATION = "ktapp.wsgi.application"
 
-# ⬇️ ESTA SECCIÓN ES LA QUE FALTA
+# ---- Templates
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # opcional si usas /templates global
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -49,10 +57,8 @@ TEMPLATES = [
         },
     },
 ]
-# ⬆️
 
-WSGI_APPLICATION = "ktapp.wsgi.application"
-
+# ---- Base de datos (SQLite local)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -60,19 +66,23 @@ DATABASES = {
     }
 }
 
-LANGUAGE_CODE = "es"
+# ---- i18n
+LANGUAGE_CODE = "es-co"
 TIME_ZONE = "America/Bogota"
 USE_I18N = True
 USE_TZ = True
 
+# ---- Static & Media (local)
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-
+STATIC_ROOT = BASE_DIR / "staticfiles"   # para tests de collectstatic si quieres
 STATICFILES_DIRS = []
-ktapp_static = BASE_DIR / "ktapp" / "static"
-if ktapp_static.exists():
-    STATICFILES_DIRS.append(ktapp_static)
 
+# 1) estáticos del paquete del proyecto: ktapp/ktapp/static
+ktapp_package_static = BASE_DIR / "ktapp" / "static"
+if ktapp_package_static.exists():
+    STATICFILES_DIRS.append(ktapp_package_static)
+
+# 2) (opcional) carpeta 'static' a nivel proyecto
 project_static = BASE_DIR / "static"
 if project_static.exists():
     STATICFILES_DIRS.append(project_static)
@@ -80,9 +90,15 @@ if project_static.exists():
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# ---- Seguridad (OFF en local)
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")  # no usar en local
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ---- Login/Logout
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "cartera:clientes_list"
 LOGOUT_REDIRECT_URL = "login"
-# Fin de ktapp/settings.py

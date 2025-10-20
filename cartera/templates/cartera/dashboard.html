@@ -4,69 +4,90 @@
 
 {% block content %}
 
-<!-- Filtros -->
-<form id="filters-form" class="card filters" method="get" style="display:flex; gap:16px; align-items:end; flex-wrap:wrap; background:#f8f4f0;">
-  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
+<form id="filters-form" class="card filters"
+      method="get"
+      style="display:flex; gap:16px; align-items:end; flex-wrap:wrap; background:#f8f4f0;">
+
+  <!-- Cliente -->
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
     <span>Cliente</span>
     <select name="cliente" id="f-cliente" class="input">
       <option value="">— Todos —</option>
       {% for c in clientes_for_select %}
-        <option value="{{ c.id }}" {% if f_cliente == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+        <option value="{{ c.id }}" {% if f_cli|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>
+          {{ c.nombre }}
+        </option>
       {% endfor %}
     </select>
   </label>
 
-  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
+  <!-- Tipo -->
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
+    <span>Tipo</span>
+    <select name="tipo" id="f-tipo" class="input">
+      <option value="">— Todos —</option>
+      <option value="natura" {% if f_tipo == 'natura' %}selected{% endif %}>Natura</option>
+      <option value="accesorios" {% if f_tipo == 'accesorios' %}selected{% endif %}>Accesorios</option>
+      <option value="otros" {% if f_tipo == 'otros' %}selected{% endif %}>Otros</option>
+    </select>
+  </label>
+
+  <!-- Mes -->
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
     <span>Mes</span>
     <select name="mes" id="f-mes" class="input">
-      <option value="act" {% if f_mes == 'act' %}selected{% endif %}>Mes actual</option>
+      <option value="act"  {% if f_mes == 'act' %}selected{% endif %}>Mes actual</option>
       <option value="prev" {% if f_mes == 'prev' %}selected{% endif %}>Mes anterior</option>
       <option value="year" {% if f_mes == 'year' %}selected{% endif %}>Año actual</option>
       <option value="custom" {% if f_mes == 'custom' %}selected{% endif %}>Personalizado</option>
     </select>
   </label>
 
-  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
+  <!-- Desde -->
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:160px;">
     <span>Desde</span>
-    <input class="input" type="date" name="desde" id="f-desde" value="{{ f_desde|date:'Y-m-d' }}">
+    <input class="input" type="date" name="desde" id="f-desde"
+           value="{{ f_desde|date:'Y-m-d' }}">
   </label>
 
-  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
+  <!-- Hasta -->
+  <label class="filt" style="display:flex; flex-direction:column; gap:6px; min-width:160px;">
     <span>Hasta</span>
-    <input class="input" type="date" name="hasta" id="f-hasta" value="{{ f_hasta|date:'Y-m-d' }}">
+    <input class="input" type="date" name="hasta" id="f-hasta"
+           value="{{ f_hasta|date:'Y-m-d' }}">
   </label>
 
+  <!-- Botones -->
   <div style="margin-left:auto; display:flex; gap:10px;">
     <button class="btn cobre" type="submit">Aplicar</button>
     <a class="btn alt" href="{% url 'cartera:dashboard' %}">Limpiar</a>
   </div>
 </form>
 
-<!-- KPIs 2x2 -->
 <div class="grid cols-2">
 
-  <!-- Valor pendiente (sin filtro de fechas; sí filtra por cliente si se selecciona) -->
+  <!-- Valor pendiente (sin fechas; sí aplica cliente y tipo) -->
   <div class="card kpi">
     <h3>Valor pendiente</h3>
     <p class="kpi-num" style="color:#AB4226;">{{ valor_pendiente|cop }}</p>
-    <small>Saldo vivo (sin filtro de fechas; filtra por cliente si se selecciona).</small>
+    <small>Saldo vivo (sin filtro de fechas; aplica cliente y tipo).</small>
   </div>
 
-  <!-- Facturas pendientes (sin filtro de fechas; sí filtra por cliente) -->
+  <!-- Facturas pendientes (sin fechas; sí aplica cliente y tipo) -->
   <div class="card kpi">
     <h3>Facturas pendientes</h3>
     <p class="kpi-num">{{ facturas_pendientes }}</p>
-    <small>Cantidad de transacciones no pagadas.</small>
+    <small>Cantidad de transacciones no pagadas (filtra por cliente y tipo).</small>
   </div>
 
-  <!-- Ventas del período (filtro por fechas/cliente) -->
+  <!-- Ventas del período (con fechas/tipo/cliente) -->
   <div class="card kpi">
     <h3>Ventas del período</h3>
     <p class="kpi-num" style="color:#715C47;">{{ ventas_periodo|cop }}</p>
     <small>Transacciones (con descuento) dentro del rango filtrado.</small>
   </div>
 
-  <!-- Transacciones (período) (filtro por fechas/cliente) -->
+  <!-- Transacciones (período) -->
   <div class="card kpi">
     <h3>Transacciones (período)</h3>
     <p class="kpi-num">{{ tx_periodo }}</p>
@@ -80,15 +101,15 @@
     <small>Ventas del período: <strong>{{ mejor_cliente_total|cop }}</strong></small>
   </div>
 
-  <!-- Cliente con más cartera (sin filtro de fechas; respeta cliente si se selecciona) -->
+  <!-- Cliente con más cartera (pendiente, sin fechas) -->
   <div class="card kpi">
     <h3>Cliente con más cartera</h3>
     <p class="kpi-num" style="font-size:1.4rem;">{{ cliente_mas_cartera_nombre }}</p>
     <small>Pendiente: <strong>{{ cliente_mas_cartera_total|cop }}</strong></small>
   </div>
+
 </div>
 
-<!-- Pendiente total por cliente -->
 <div class="card">
   <h3 style="margin-top:0">Pendiente total por cliente</h3>
   <table>
@@ -101,37 +122,29 @@
     </thead>
     <tbody>
       {% for row in resumen_por_cliente %}
-      <tr>
-        <td><strong>{{ row.nombre }}</strong></td>
-        <td class="right"><strong>{{ row.pendiente|cop }}</strong></td>
-        <td class="right">
-          <a class="btn alt" href="{% url 'cartera:clientes_detail' row.id %}">Ver</a>
-        </td>
-      </tr>
+        {% if row.pendiente > 0 %}
+        <tr>
+          <td><strong>{{ row.nombre }}</strong></td>
+          <td class="right"><strong>{{ row.pendiente|cop }}</strong></td>
+          <td class="right">
+            <a class="btn alt" href="{% url 'cartera:clientes_detail' row.id %}">Ver</a>
+          </td>
+        </tr>
+        {% endif %}
       {% empty %}
-      <tr><td colspan="3">No hay datos.</td></tr>
+        <tr><td colspan="3">No hay clientes con saldo pendiente.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
 <style>
-/* grids y tarjetas */
 .grid{ display:grid; gap:16px; }
-.grid.cols-2{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-@media (max-width: 900px){ .grid.cols-2{ grid-template-columns: 1fr; } }
-
-.kpi .kpi-num{
-  margin:6px 0 2px;
-  font-weight:800;
-  font-size:1.9rem;
-}
-
-/* filtros */
+.grid.cols-2{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+@media (max-width:900px){ .grid.cols-2{ grid-template-columns:1fr; } }
+.kpi .kpi-num{ margin:6px 0 2px; font-weight:800; font-size:1.9rem; }
 .filters .input{ background:#fff; }
 .filters{ border:1px solid #eadfd4; }
-
-/* tabla */
 .right{ text-align:right; }
 </style>
 
@@ -139,6 +152,7 @@
 (function(){
   const form = document.getElementById('filters-form');
   const selCliente = document.getElementById('f-cliente');
+  const selTipo = document.getElementById('f-tipo');
   const selMes = document.getElementById('f-mes');
   const dInput = document.getElementById('f-desde');
   const hInput = document.getElementById('f-hasta');
@@ -150,29 +164,25 @@
     dInput.value = `${d1.getFullYear()}-${p(d1.getMonth()+1)}-${p(d1.getDate())}`;
     hInput.value = `${d2.getFullYear()}-${p(d2.getMonth()+1)}-${p(d2.getDate())}`;
   }
-
   function apply(){ if(form) form.submit(); }
 
-  if (selMes){
+  if(selMes){
     selMes.addEventListener('change', () => {
       const today = new Date();
       const y = today.getFullYear();
       const m = today.getMonth()+1;
-
-      if (selMes.value === 'act'){
-        setMonthBounds(y, m);
-      } else if (selMes.value === 'prev'){
-        const prev = new Date(y, m-2, 1); // mes anterior
-        setMonthBounds(prev.getFullYear(), prev.getMonth()+1);
-      } else if (selMes.value === 'year'){
-        dInput.value = `${y}-01-01`;
-        hInput.value = `${y}-12-31`;
+      if(selMes.value==='act'){ setMonthBounds(y,m); }
+      else if(selMes.value==='prev'){
+        const prev=new Date(y,m-2,1);
+        setMonthBounds(prev.getFullYear(),prev.getMonth()+1);
+      } else if(selMes.value==='year'){
+        dInput.value=`${y}-01-01`; hInput.value=`${y}-12-31`;
       }
       apply();
     });
   }
-
-  if (selCliente){ selCliente.addEventListener('change', apply); }
+  if(selCliente){ selCliente.addEventListener('change', apply); }
+  if(selTipo){ selTipo.addEventListener('change', apply); }
 })();
 </script>
 

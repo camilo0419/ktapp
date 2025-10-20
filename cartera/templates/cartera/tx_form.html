@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Transacción{% endblock %}
+{% block title %}{% if form.instance.pk %}Editar transacción{% else %}Nueva transacción{% endif %}{% endblock %}
 {% block content %}
 
 <div class="card" style="max-width:820px;margin:auto;">
@@ -9,17 +9,25 @@
     {% csrf_token %}
     {{ form.non_field_errors }}
 
+    <!-- Cliente -->
     <label>Cliente {{ form.cliente }}</label>
     {% if form.errors.cliente %}<small class="error">{{ form.errors.cliente.0 }}</small>{% endif %}
 
+    <!-- Tipo -->
     <label>Tipo {{ form.tipo }}</label>
     {% if form.errors.tipo %}<small class="error">{{ form.errors.tipo.0 }}</small>{% endif %}
 
+    <!-- Campaña (solo Natura) -->
     <div id="campania-wrapper" style="display:none;">
       <label># Campaña {{ form.campania }}</label>
-      {% if form.errors.campania %}<small class="error">{{ form.errors.campania.0 }}</small>{% else %}<small class="help">Visible solo si el tipo es "Natura".</small>{% endif %}
+      {% if form.errors.campania %}
+        <small class="error">{{ form.errors.campania.0 }}</small>
+      {% else %}
+        <small class="help">Visible solo si el tipo es "Natura".</small>
+      {% endif %}
     </div>
 
+    <!-- Fecha -->
     <div class="grid" style="gap:12px;margin-top:8px;">
       <label>Fecha {{ form.fecha }}</label>
       {{ form.hora }} <!-- oculto por widget -->
@@ -28,14 +36,14 @@
 
     <hr>
 
+    <!-- Formset productos -->
     {{ formset.management_form }}
-    {% if formset.non_form_errors %}<div class="error">{{ formset.non_form_errors }}</div>{% endif %}
+    {% if formset.non_form_errors %}
+      <div class="error">{{ formset.non_form_errors }}</div>
+    {% endif %}
 
     <div id="items-container" style="display:grid;gap:8px;">
-
-      {# En GET (no bound) mostramos solo una fila; en POST (bound) mostramos todas para ver errores #}
       {% for f in formset.forms %}
-        {% if formset.is_bound or forloop.first %}
         <div class="item-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
           <label>Producto {{ f.producto }}</label>
           {% if f.errors.producto %}<small class="error">{{ f.errors.producto.0 }}</small>{% endif %}
@@ -50,12 +58,13 @@
           {% if f.errors.descuento %}<small class="error">{{ f.errors.descuento.0 }}</small>{% endif %}
 
           <div style="align-self:center;">
-            {% if f.instance.pk %}<label style="display:flex;align-items:center;gap:6px;">Eliminar {{ f.DELETE }}</label>{% endif %}
+            {% if f.instance.pk %}
+              <label style="display:flex;align-items:center;gap:6px;">Eliminar {{ f.DELETE }}</label>
+            {% endif %}
           </div>
 
           {% for h in f.hidden_fields %}{{ h }}{% endfor %}
         </div>
-        {% endif %}
       {% endfor %}
     </div>
 
@@ -63,13 +72,14 @@
 
     <hr>
 
-    <!-- Totales en vivo -->
+    <!-- Totales -->
     <div class="grid" style="gap:6px;">
       <div><strong>Subtotal:</strong> $<span id="t-subtotal">0</span></div>
       <div><strong>Total descuento:</strong> $<span id="t-descuento">0</span></div>
       <div><strong>Valor a pagar:</strong> $<span id="t-pagar">0</span></div>
     </div>
 
+    <!-- Pagado -->
     <div class="grid" style="gap:12px;margin-top:12px;">
       <div class="checkbox-line" style="display:flex;align-items:center;gap:10px;">
         {{ form.pagado }} <label for="id_pagado" style="margin:0;">Pagado</label>
@@ -79,6 +89,7 @@
       </div>
     </div>
 
+    <!-- Botones -->
     <div style="margin-top:16px;">
       <button class="btn primary" type="submit">Guardar</button>
       <a class="btn" href="javascript:history.back()">Cancelar</a>
@@ -88,10 +99,10 @@
 
 <script>
 (function(){
+  // --- Mostrar campo campaña cuando el tipo es NATURA ---
   const NAT = "NAT";
   const tipoSel = document.getElementById("id_tipo");
   const campaniaWrap = document.getElementById("campania-wrapper");
-
   function toggleCampania(){
     if (!tipoSel) return;
     const v = tipoSel.value;
@@ -102,6 +113,7 @@
     toggleCampania();
   }
 
+  // --- Dinámica de formset ---
   const addBtn = document.getElementById("add-item");
   const container = document.getElementById("items-container");
   const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
@@ -109,23 +121,16 @@
   function emptyRowTemplate(){
     const first = container.querySelector(".item-row");
     const clone = first.cloneNode(true);
-
     // limpiar valores de inputs
     clone.querySelectorAll("input").forEach(inp => {
       if (inp.type === "checkbox") { inp.checked = false; }
       else { inp.value = ""; }
     });
-    // select descuento: opción vacía por defecto (—)
     const sel = clone.querySelector('select[name$="descuento"]');
     if (sel) sel.value = "";
-
-    // quitar DELETE si está
     const del = clone.querySelector('input[type="checkbox"][name$="DELETE"]');
     if (del) del.closest("label").remove();
-
-    // quitar mensajes de error posibles
     clone.querySelectorAll(".error").forEach(e => e.remove());
-
     return clone;
   }
 
@@ -150,13 +155,13 @@
     });
   }
 
-  // --------- Cálculo en vivo ---------
+  // --- Cálculos automáticos ---
   const fmtMoney = (n) => (isFinite(n) ? new Intl.NumberFormat('es-CO').format(Math.max(n,0).toFixed(0)) : "0");
 
   function rowValues(row){
     const p = parseFloat((row.querySelector('input[name$="precio_unitario"]')?.value || "0").replace(",", ".")) || 0;
     const c = parseFloat((row.querySelector('input[name$="cantidad"]')?.value || "0").replace(",", ".")) || 0;
-    const d = parseInt(row.querySelector('select[name$="descuento"]')?.value || "0", 10) || 0; // 10|20|30
+    const d = parseInt(row.querySelector('select[name$="descuento"]')?.value || "0", 10) || 0;
     const base = p * c;
     const total = base * (1 - (d/100));
     return {base, total, desc: base - total};
@@ -181,7 +186,6 @@
     inputs.forEach(el => el.addEventListener("change", calcTotals));
   }
 
-  // bind inicial a todas las filas renderizadas (en POST habrá varias)
   document.querySelectorAll("#items-container .item-row").forEach(bindRow);
   calcTotals();
 })();
@@ -192,5 +196,6 @@
 .checkbox-line input[type="checkbox"]{ width:20px;height:20px;accent-color:#C07A57;cursor:pointer; }
 .checkbox-line label{ font-weight:600;color:#333;cursor:pointer; }
 .error{ color:#b00020; font-size:12px; }
+.help{ color:#777; font-size:12px; }
 </style>
 {% endblock %}
