@@ -18,6 +18,18 @@ from datetime import date, timedelta
 from collections import defaultdict
 from calendar import monthrange
 from datetime import datetime
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from django.conf import settings
+import os
+import sys
+from urllib.parse import urlparse
+from io import BytesIO
+from django.http import HttpResponse, Http404
+from django.shortcuts import get_object_or_404
+from django.template.loader import render_to_string
+
+
 
 
 
@@ -185,7 +197,54 @@ def _parse_tipos(request):
         code = TIPO_MAP.get(r.lower())
         if code and code not in codes:
             codes.append(code)
-    return codes or None  # None => todos
+    return codes or None
+
+def _link_callback_fast(uri, rel):
+    """
+    xhtml2pdf: mapea /static/... y /media/... a rutas de disco.
+    Evita resolver por HTTP y acelera el render.
+    """
+    s = urlparse(uri)
+    path = s.path or uri
+
+    # STATIC
+    if path.startswith(settings.STATIC_URL):
+        rel_path = path.replace(settings.STATIC_URL, "", 1)
+        full_path = os.path.join(settings.STATIC_ROOT or "", rel_path)
+        if not os.path.exists(full_path):
+            # fallback a dirs en STATICFILES_DIRS
+            for d in getattr(settings, "STATICFILES_DIRS", []):
+                candidate = os.path.join(d, rel_path)
+                if os.path.exists(candidate):
+                    full_path = candidate
+                    break
+        if os.path.exists(full_path):
+            return full_path
+
+    # MEDIA
+    if hasattr(settings, "MEDIA_URL") and path.startswith(settings.MEDIA_URL):
+        rel_path = path.replace(settings.MEDIA_URL, "", 1)
+        full_path = os.path.join(settings.MEDIA_ROOT or "", rel_path)
+        if os.path.exists(full_path):
+            return full_path
+
+    # Como último recurso, devuelve tal cual (xhtml2pdf intentará usarlo)
+    return uri
+
+def _pick_engine():
+    """
+    Elige motor según settings/entorno:
+    - weasyprint en producción (o si se fuerza),
+    - xhtml2pdf en local/Windows por rapidez.
+    """
+    forced = getattr(settings, "PDF_ENGINE", "auto").lower()
+    if forced in ("weasyprint", "xhtml2pdf"):
+        return forced
+
+    # AUTO: si es Windows o DEBUG => xhtml2pdf; si no => weasyprint
+    if sys.platform.startswith("win") or settings.DEBUG:
+        return "xhtml2pdf"
+    return "weasyprint"
 
 @login_required
 def estado_cuenta(request, pk):
@@ -272,6 +331,148 @@ def estado_cuenta(request, pk):
         "show_liliana": show_liliana,
         "show_kathe": show_kathe,
     })
+
+def _build_estado_ctx(request, cliente, tipos_codes):
+    """
+    Reutiliza el mismo cómputo de estado_cuenta (pendientes),
+    devolviendo el contexto listo para el template HTML o PDF.
+    """
+    from decimal import Decimal
+    from django.utils import timezone
+
+    hoy = timezone.localdate()
+    qs = (cliente.transacciones
+          .filter(pagado=False)
+          .select_related("cliente")
+          .prefetch_related("items", "abonos")
+          .order_by("-fecha"))
+
+    if tipos_codes:
+        qs = qs.filter(tipo__in=tipos_codes)
+
+    codes_order = tipos_codes or ["NAT", "ACC", "OTR"]
+
+    grouped = {code: [] for code in codes_order}
+
+    def zero():
+        return {"base": Decimal("0"), "desc": Decimal("0"),
+                "abonado": Decimal("0"), "saldo": Decimal("0")}
+
+    subtotals = {code: zero() for code in codes_order}
+    totals    = zero()
+
+    for tx in qs:
+        base_total = Decimal("0")
+        desc_total = Decimal("0")
+        for it in tx.items.all():
+            base = Decimal(it.precio_unitario or 0) * Decimal(it.cantidad or 0)
+            pct  = Decimal(it.descuento or 0) / Decimal("100")
+            base_total += base
+            desc_total += (base * pct)
+
+        tx.base_total = base_total
+        tx.desc_total = desc_total
+
+        if tx.tipo in grouped:
+            grouped[tx.tipo].append(tx)
+
+        abonado = Decimal(str(tx.total_abonos or 0))
+        saldo   = Decimal(str(tx.saldo_actual or 0))
+
+        if tx.tipo in subtotals:
+            subtotals[tx.tipo]["base"]    += base_total
+            subtotals[tx.tipo]["desc"]    += desc_total
+            subtotals[tx.tipo]["abonado"] += abonado
+            subtotals[tx.tipo]["saldo"]   += saldo
+
+        totals["base"]    += base_total
+        totals["desc"]    += desc_total
+        totals["abonado"] += abonado
+        totals["saldo"]   += saldo
+
+    tipos_human = [TIPO_LABEL[c] for c in codes_order]
+
+    include_acc    = (tipos_codes is None) or ("ACC" in (tipos_codes or []))
+    include_nonacc = (tipos_codes is None) or any(c in (tipos_codes or []) for c in ("NAT","OTR"))
+    show_liliana   = include_acc
+    show_kathe     = include_nonacc
+
+    grouped_list = []
+    for code in codes_order:
+        grouped_list.append({
+            "code": code,
+            "label": TIPO_LABEL[code],
+            "txs": grouped[code],
+            "subtotal": subtotals[code],
+        })
+
+    return {
+        "cliente": cliente,
+        "hoy": hoy,
+        "grouped": grouped_list,
+        "totals": totals,
+        "tipos_human": tipos_human,
+        "show_liliana": show_liliana,
+        "show_kathe": show_kathe,
+    }
+
+@login_required
+def estado_cuenta_pdf(request, pk):
+    from .models import Cliente
+    cliente = get_object_or_404(Cliente, pk=pk)
+    tipos_codes = _parse_tipos(request)
+    ctx = _build_estado_ctx(request, cliente, tipos_codes)
+
+    html_string = render_to_string("cartera/estado_cuenta_pdf.html", ctx, request=request)
+    engine = _pick_engine()
+
+    # Determinar sufijo de tipos (Natura, Accesorios, Otros o Todos)
+    tipos_human = ctx.get("tipos_human", [])
+    if not tipos_human:
+        tipo_sufijo = "Todos"
+    else:
+        tipo_sufijo = "-".join(tipos_human)
+
+    # Sanitizar nombre (evitar espacios o caracteres no válidos)
+    safe_name = cliente.nombre.replace(" ", "_")
+    safe_tipo = tipo_sufijo.replace(" ", "_")
+
+    # Nombre final de archivo
+    filename = f"Estado_de_Cuenta_{safe_name}_{safe_tipo}.pdf"
+
+    # ==== Generación PDF ====
+    if engine == "weasyprint":
+        try:
+            from weasyprint import HTML, CSS
+            base_url = request.build_absolute_uri("/")
+            pdf = HTML(string=html_string, base_url=base_url).write_pdf(
+                stylesheets=[CSS(string="""
+                    @page { size: A4; margin: 18mm; }
+                    * { -weasy-hyphens: auto; }
+                """)]
+            )
+            resp = HttpResponse(pdf, content_type="application/pdf")
+            resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+            return resp
+        except Exception:
+            # caemos al plan B
+            pass
+
+    # === xhtml2pdf (rápido en Windows/local) ===
+    from xhtml2pdf import pisa
+    pdf_io = BytesIO()
+    pisa_status = pisa.CreatePDF(
+        html_string,
+        dest=pdf_io,
+        encoding="utf-8",
+        link_callback=_link_callback_fast,
+    )
+    if pisa_status.err:
+        raise Http404("No se pudo generar el PDF.")
+    resp = HttpResponse(pdf_io.getvalue(), content_type="application/pdf")
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
+
 
 
 # ========= helpers para formset =========

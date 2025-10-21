@@ -8,6 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = True
 SECRET_KEY = "dev-secret-key-solo-local"
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "[::1]"]
+PDF_ENGINE = "auto"
 
 # CSRF confiando en orígenes locales
 CSRF_TRUSTED_ORIGINS = [

@@ -28,5 +28,6 @@ urlpatterns = [
 
     # ESTADO DE CUENTA
     path("clientes/<int:pk>/estado-cuenta/", views.estado_cuenta, name="estado_cuenta"),
+    path("clientes/<int:pk>/estado-cuenta/pdf/", views.estado_cuenta_pdf, name="estado_cuenta_pdf"),
 
 ]

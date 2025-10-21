@@ -6,6 +6,13 @@
 
 <div class="card estado-cuenta">
 
+  <!-- Botón flotante PDF -->
+  <a class="fab-pdf"
+     href="{% url 'cartera:estado_cuenta_pdf' cliente.id %}?{{ request.GET.urlencode|default:'ready=1' }}"
+     title="Descargar PDF">
+    ⬇️ PDF
+  </a>
+
   <!-- Barra superior con volver -->
   <div class="topbar">
     <a class="btn alt" href="{% url 'cartera:clientes_detail' cliente.id %}">← Atrás</a>
@@ -13,7 +20,7 @@
 
   <div class="header-ec">
     <div class="logo">
-      <img src="{% static 'ktapp/icons/favicon-96x96.png' %}" alt="Logo" width="60" height="60">
+      <img src="{% static 'ktapp/icons/favicon-96x96.png' %}" alt="Logo" width="90" height="90">
       <div class="tit">
         <h1>Estado de cuenta</h1>
         <p class="fecha">
@@ -26,7 +33,6 @@
       <h2>{{ cliente.nombre }}</h2>
       {% if cliente.telefono %}<p>📞 {{ cliente.telefono }}</p>{% endif %}
       {% if cliente.correo %}<p>✉️ {{ cliente.correo }}</p>{% endif %}
-      
       <span class="pill-soft warn">Solo transacciones pendientes</span>
     </div>
   </div>
@@ -263,5 +269,22 @@
   text-decoration:none;
 }
 .btn.mini:hover{ filter:brightness(.95); }
+
+/* FAB PDF */
+.fab-pdf{
+  position: fixed;
+  right: 16px;
+  bottom: 86px;
+  background: #CC845E;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+  padding: 12px 14px;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.15);
+  z-index: 50;
+}
+.fab-pdf:hover{ filter: brightness(.95); }
+@media print{ .fab-pdf{ display:none !important; } }
 </style>
 {% endblock %}

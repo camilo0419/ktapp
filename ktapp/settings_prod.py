@@ -9,6 +9,9 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "change-me-in-PA")
 ALLOWED_HOSTS = ["kathem.pythonanywhere.com"]
 CSRF_TRUSTED_ORIGINS = ["https://kathem.pythonanywhere.com"]
 
+PDF_ENGINE = "weasyprint"
+
+
 # --- Seguridad (recomendado en PA) ---
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True

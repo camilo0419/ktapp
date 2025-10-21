@@ -1,0 +1,233 @@
+{% load static %}
+{% load currency %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Estado de cuenta - {{ cliente.nombre }}</title>
+  <style>
+    /* === Plantilla compatible con xhtml2pdf === */
+    @page { size: A4; margin: 18mm; }
+    body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; font-size: 12px; color: #222; }
+    h1, h2, h3, h4 { margin: 0 0 6px 0; }
+    .muted { color:#666; }
+    .small { font-size: 11px; }
+    .right { text-align: right; }
+    .center { text-align: center; }
+    .mt4 { margin-top: 4px; }
+    .mt8 { margin-top: 8px; }
+    .mt10 { margin-top: 10px; }
+    .mt12 { margin-top: 12px; }
+    .mb0 { margin-bottom: 0; }
+    .mb4 { margin-bottom: 4px; }
+    .mb6 { margin-bottom: 6px; }
+    .mb8 { margin-bottom: 8px; }
+    .mb10 { margin-bottom: 10px; }
+    .mb12 { margin-bottom: 12px; }
+    .box { border: 1px solid #ccc; padding: 8px; }
+    .sep { border-top: 1px solid #ccc; margin: 10px 0; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 6px; vertical-align: top; }
+    th { background: #eee; text-align: left; }
+    .no-border td, .no-border th { border: none; }
+
+    /* Etiquetas simples */
+    .pill-warn { background: #b3261e; color: #fff; padding: 2px 6px; font-weight: bold; font-size: 11px; }
+
+    /* Cabecera por tablas */
+    .hdr-title { font-size: 18px; font-weight: bold; }
+    .hdr-includes { font-size: 11px; color:#333; }
+
+    /* Card suave (simulada para PDF) */
+    .soft { background: #f6f1ec; border: 1px solid #d9cfc6; }
+
+    /* Total general - números algo más grandes */
+    .big { font-size: 13px; font-weight: 700; }
+    .accent { color: #AB4226; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+  <!-- Cabecera -->
+  <table class="no-border" style="width:100%;">
+    <tr>
+      <td style="width: 80px; vertical-align: top;">
+        <img src="{% static 'ktapp/icons/favicon-96x96.png' %}" width="70" height="70" alt="Logo">
+      </td>
+      <td style="vertical-align: top;">
+        <div class="hdr-title">Estado de cuenta</div>
+        <div class="small muted">
+          Generado el {{ hoy|date:"d \\d\\e F \\d\\e Y" }} · {% now "H:i" %}
+        </div>
+        <div class="hdr-includes mt4">
+          Incluye: {{ tipos_human|join:", " }}
+        </div>
+      </td>
+      <td class="right" style="vertical-align: top;">
+        <strong>{{ cliente.nombre }}</strong><br>
+        {% if cliente.telefono %}<span class="small">📞 {{ cliente.telefono }}</span><br>{% endif %}
+        {% if cliente.correo %}<span class="small">✉️ {{ cliente.correo }}</span><br>{% endif %}
+        <span class="small" style="color:#7a2315;">Solo transacciones pendientes</span>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Intro -->
+  <div class="box mt8">
+    <span class="small">
+      El siguiente estado de cuenta hace referencia a <strong>{{ tipos_human|join:", " }}</strong> para el cliente
+      <strong>{{ cliente.nombre }}</strong>. Si tienes dudas o comentarios, por favor comunícate con
+      <strong>Kathe</strong> al <strong>311&nbsp;355&nbsp;11&nbsp;89</strong>.
+    </span>
+  </div>
+
+  <div class="sep"></div>
+
+  {% for g in grouped %}
+    {% if g.txs %}
+      <h3 class="mb6">{{ g.label }}</h3>
+
+      {% for tx in g.txs %}
+        <!-- Encabezado Breve -->
+        <table class="no-border" style="width:100%; margin-bottom: 6px;">
+          <tr>
+            <td><strong>{{ tx.get_tipo_display }}</strong> · {{ tx.fecha|date:"Y-m-d" }}</td>
+            <td class="right"><span class="pill-warn">Pendiente</span></td>
+          </tr>
+          {% if tx.campania %}
+          <tr class="no-border"><td colspan="2" class="small">Campaña: {{ tx.campania }}</td></tr>
+          {% endif %}
+          {% if tx.descripcion %}
+          <tr class="no-border"><td colspan="2" class="small">Descripción: {{ tx.descripcion }}</td></tr>
+          {% endif %}
+        </table>
+
+        <!-- Ítems -->
+        <table class="mb8">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th class="right">P. U.</th>
+              <th class="right">Cant.</th>
+              <th class="right">Desc %</th>
+              <th class="right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for it in tx.items.all %}
+            <tr>
+              <td>{{ it.producto }}</td>
+              <td class="right">{{ it.precio_unitario|cop }}</td>
+              <td class="right">{{ it.cantidad }}</td>
+              <td class="right">{% if it.descuento %}{{ it.descuento }}{% else %}—{% endif %}</td>
+              <td class="right">{{ it.total_linea|cop }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5"><em>Sin ítems</em></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <!-- Totales por TX -->
+        <table class="no-border" style="width:100%; margin-top: 2px; margin-bottom: 8px;">
+          <tr>
+            <td class="right small">Valor: <strong>{{ tx.base_total|cop }}</strong></td>
+            <td class="right small">Descuento: <strong>{{ tx.desc_total|cop }}</strong></td>
+            <td class="right small">Abonado: <strong>{{ tx.total_abonos|cop }}</strong></td>
+            <td class="right small">Saldo: <strong>{{ tx.saldo_actual|cop }}</strong></td>
+          </tr>
+        </table>
+
+        <div class="sep"></div>
+      {% endfor %}
+
+      <!-- Subtotal por tipo -->
+      <table class="no-border" style="width:100%; margin-bottom: 10px;">
+        <tr>
+          <td><strong>Subtotal {{ g.label }}</strong></td>
+          <td class="right small">Valor: <strong>{{ g.subtotal.base|cop }}</strong></td>
+          <td class="right small">Descuento: <strong>{{ g.subtotal.desc|cop }}</strong></td>
+          <td class="right small">Abonado: <strong>{{ g.subtotal.abonado|cop }}</strong></td>
+          <td class="right small">Saldo: <strong>{{ g.subtotal.saldo|cop }}</strong></td>
+        </tr>
+      </table>
+
+    {% endif %}
+  {% empty %}
+    <p><em>No hay transacciones pendientes para esta selección.</em></p>
+  {% endfor %}
+
+  <!-- ===== Total general (card bonita) ===== -->
+  <h3 class="mt12 mb4">Total general</h3>
+  <table class="soft" cellspacing="0" cellpadding="0" style="width:100%; border-collapse: collapse; margin-bottom: 8px;">
+    <tr>
+      <td class="right big" style="border:1px solid #d9cfc6; padding:8px;">Valor: <span>{{ totals.base|cop }}</span></td>
+      <td class="right big" style="border:1px solid #d9cfc6; padding:8px;">Descuento: <span>{{ totals.desc|cop }}</span></td>
+      <td class="right big" style="border:1px solid #d9cfc6; padding:8px;">Abonado: <span>{{ totals.abonado|cop }}</span></td>
+      <td class="right big" style="border:1px solid #d9cfc6; padding:8px;">Saldo: <span class="accent">{{ totals.saldo|cop }}</span></td>
+    </tr>
+  </table>
+
+  {% if show_liliana or show_kathe %}
+  <div class="sep"></div>
+  <h3 class="mb8">Información de pago</h3>
+
+  <!-- Cards de pago en tabla (para PDF) -->
+  {% if show_kathe %}
+  <table class="soft" cellspacing="0" cellpadding="0" style="width:100%; border-collapse: collapse; margin-bottom:10px;">
+    <tr>
+      <td style="border:1px solid #d9cfc6; padding:10px;">
+        <table class="no-border">
+          <tr>
+            <td style="width:50%; vertical-align: top;">
+              <strong>Pago a Kathe</strong><br>
+              <span class="small muted">Cuenta Nequi · <strong>311-355-11-89</strong></span>
+            </td>
+            <td class="right" style="vertical-align: top;">
+              <table class="no-border" style="display:inline-table;">
+                <tr>
+                  <td class="center" style="border:1px dashed #CC845E; padding:8px;">
+                    <img src="{% static 'ktapp/img/qr_kathe.png' %}" width="150" height="150" alt="QR Kathe"><br>
+                    <span class="small muted">Escanea para pagar a Kathe</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  {% endif %}
+
+  {% if show_liliana %}
+  <table class="soft" cellspacing="0" cellpadding="0" style="width:100%; border-collapse: collapse; margin-bottom:10px;">
+    <tr>
+      <td style="border:1px solid #d9cfc6; padding:10px;">
+        <table class="no-border">
+          <tr>
+            <td style="width:50%; vertical-align: top;">
+              <strong>Pago a Liliana</strong><br>
+              <span class="small muted">Cuenta Nequi · <strong>311-795-94-22</strong></span>
+            </td>
+            <td class="right" style="vertical-align: top;">
+              <table class="no-border" style="display:inline-table;">
+                <tr>
+                  <td class="center" style="border:1px dashed #CC845E; padding:8px;">
+                    <img src="{% static 'ktapp/img/qr_liliana.png' %}" width="150" height="150" alt="QR Liliana"><br>
+                    <span class="small muted">Escanea para pagar a Liliana</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  {% endif %}
+  {% endif %}
+
+</body>
+</html>
