@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% load static %}
+{% load currency %}
+{% block title %}Estado de cuenta - {{ cliente.nombre }}{% endblock %}
+{% block content %}
+
+<div class="card estado-cuenta">
+
+  <!-- Barra superior con volver -->
+  <div class="topbar">
+    <a class="btn alt" href="{% url 'cartera:clientes_detail' cliente.id %}">← Atrás</a>
+  </div>
+
+  <div class="header-ec">
+    <div class="logo">
+      <img src="{% static 'ktapp/icons/favicon-96x96.png' %}" alt="Logo" width="60" height="60">
+      <div class="tit">
+        <h1>Estado de cuenta</h1>
+        <p class="fecha">
+          Generado el {{ hoy|date:"d \\d\\e F \\d\\e Y" }} · {% now "H:i" %}
+        </p>
+      </div>
+    </div>
+
+    <div class="cliente-info">
+      <h2>{{ cliente.nombre }}</h2>
+      {% if cliente.telefono %}<p>📞 {{ cliente.telefono }}</p>{% endif %}
+      {% if cliente.correo %}<p>✉️ {{ cliente.correo }}</p>{% endif %}
+      
+      <span class="pill-soft warn">Solo transacciones pendientes</span>
+    </div>
+  </div>
+
+  <!-- Mensaje amable -->
+  <div class="intro-copy">
+    <p>
+      El siguiente estado de cuenta hace referencia a
+      <strong>{{ tipos_human|join:", " }}</strong> para el cliente
+      <strong>{{ cliente.nombre }}</strong>. Si tienes alguna duda o comentario,
+      por favor comunícate con <strong>Kathe</strong> al <strong>311&nbsp;355&nbsp;11&nbsp;89</strong>.
+    </p>
+  </div>
+
+  <hr class="sep">
+
+  {% for g in grouped %}
+    {% if g.txs %}
+      <div class="tipo-section">
+        <h3 class="tipo-title">{{ g.label }}</h3>
+
+        {% for tx in g.txs %}
+          <div class="tx-block">
+            <div class="tx-head">
+              <div>
+                <strong>{{ tx.get_tipo_display }}</strong> · {{ tx.fecha|date:"Y-m-d" }}
+              </div>
+              <span class="estado warn">Pendiente</span>
+            </div>
+
+            {% if tx.campania %}
+              <p class="campania">Campaña: {{ tx.campania }}</p>
+            {% endif %}
+            {% if tx.descripcion %}
+              <p class="descripcion">{{ tx.descripcion }}</p>
+            {% endif %}
+
+            <table class="tabla-items">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th class="right">P. U.</th>
+                  <th class="right">Cant.</th>
+                  <th class="right">Desc %</th>
+                  <th class="right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for it in tx.items.all %}
+                <tr>
+                  <td>{{ it.producto }}</td>
+                  <td class="right">{{ it.precio_unitario|cop }}</td>
+                  <td class="right">{{ it.cantidad }}</td>
+                  <td class="right">{% if it.descuento %}{{ it.descuento }}{% else %}—{% endif %}</td>
+                  <td class="right">{{ it.total_linea|cop }}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+
+            <!-- Totales por transacción -->
+            <div class="totales">
+              <div><span>Valor:</span> <strong>{{ tx.base_total|cop }}</strong></div>
+              <div><span>Descuento:</span> <strong>{{ tx.desc_total|cop }}</strong></div>
+              <div><span>Abonado:</span> <strong>{{ tx.total_abonos|cop }}</strong></div>
+              <div><span>Saldo:</span> <strong style="color:#AB4226">{{ tx.saldo_actual|cop }}</strong></div>
+            </div>
+          </div>
+        {% endfor %}
+
+        <!-- Subtotal por tipo -->
+        <div class="subtotal-card">
+          <div class="row">
+            <strong>Subtotal {{ g.label }}</strong>
+            <div class="right">
+              <div>Valor: <strong>{{ g.subtotal.base|cop }}</strong></div>
+              <div>Descuento: <strong>{{ g.subtotal.desc|cop }}</strong></div>
+              <div>Abonado: <strong>{{ g.subtotal.abonado|cop }}</strong></div>
+              <div>Saldo: <strong style="color:#AB4226">{{ g.subtotal.saldo|cop }}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="tipo-sep">
+      </div>
+    {% endif %}
+  {% empty %}
+    <p><em>No hay transacciones pendientes para esta selección.</em></p>
+  {% endfor %}
+
+  <!-- Total general -->
+  <div class="total-general">
+    <h3 style="margin:0;">Total general</h3>
+    <div class="grid4">
+      <div>Valor: <strong>{{ totals.base|cop }}</strong></div>
+      <div>Descuento: <strong>{{ totals.desc|cop }}</strong></div>
+      <div>Abonado: <strong>{{ totals.abonado|cop }}</strong></div>
+      <div>Saldo: <strong style="color:#AB4226">{{ totals.saldo|cop }}</strong></div>
+    </div>
+  </div>
+
+  <!-- Bloques de pago -->
+  <div class="footer-ec">
+    {% if show_liliana or show_kathe %}
+      <h3>Información de pago</h3>
+      <div class="pagos-grid">
+        {% if show_kathe %}
+          <div class="pago-card">
+            <h4 style="margin:0 0 6px;">Pago a Kathe</h4>
+            <p class="sub">Cuenta Nequi · <strong>311-355-11-89</strong></p>
+            <div class="qr-box">
+              <img src="{% static 'ktapp/img/qr_kathe.png' %}" alt="QR Kathe" width="170" height="170">
+              <small>Escanea para pagar a Kathe</small>
+              <a class="btn mini" href="{% static 'ktapp/img/qr_kathe.png' %}" download="QR-Kathe.png">Descargar QR</a>
+            </div>
+          </div>
+        {% endif %}
+        {% if show_liliana %}
+          <div class="pago-card">
+            <h4 style="margin:0 0 6px;">Pago a Liliana</h4>
+            <p class="sub">Cuenta Nequi · <strong>311-795-94-22</strong></p>
+            <div class="qr-box">
+              <img src="{% static 'ktapp/img/qr_liliana.png' %}" alt="QR Liliana" width="170" height="170">
+              <small>Escanea para pagar a Liliana</small>
+              <a class="btn mini" href="{% static 'ktapp/img/qr_liliana.png' %}" download="QR-Liliana.png">Descargar QR</a>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.estado-cuenta{
+  max-width:900px; margin:0 auto;
+  background:#fffdfb;
+  border:1px solid #eadfd4;
+  box-shadow:0 4px 20px rgba(0,0,0,.05);
+  padding:22px 22px 28px; border-radius:16px;
+}
+.topbar{ display:flex; justify-content:flex-start; margin-bottom:6px; }
+.header-ec{ display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; }
+.logo{ display:flex; align-items:center; gap:16px; }
+.logo h1{ margin:0; font-size:1.8rem; color:#3b2e25; }
+.logo .fecha{ color:#715C47; font-size:.9rem; }
+.cliente-info{ text-align:right; }
+.sep{ border:none; border-top:1px solid #eadfd4; margin:16px 0; }
+
+.intro-copy{
+  background:#fff8f3;
+  border:1px solid #eadfd4;
+  color:#4b3b2e;
+  border-radius:10px;
+  padding:10px 12px;
+  margin-top:8px;
+  line-height:1.45;
+}
+
+.tipo-title{ margin:10px 0 6px; color:#3b2e25; }
+.tx-block{ margin:14px 0 18px; }
+.tx-head{ display:flex; justify-content:space-between; align-items:center; background:#f8f4f0; padding:8px 12px; border-radius:8px; font-weight:600; }
+.estado.warn{ background:#b3261e; color:#fff; padding:4px 10px; border-radius:999px; font-size:.85rem; }
+
+.tabla-items{ width:100%; border-collapse:collapse; margin-top:10px; }
+.tabla-items th, .tabla-items td{ border-bottom:1px solid #eadfd4; padding:6px 8px; }
+.tabla-items th{ background:#f6f1ec; text-align:left; font-size:.9rem; }
+.tabla-items .right{ text-align:right; }
+
+.totales{
+  display:flex; flex-wrap:wrap;
+  gap:18px 24px;
+  justify-content:flex-end;
+  margin-top:8px;
+  font-size:.95rem;
+}
+
+.subtotal-card{
+  background:#fff8f3;
+  border:1px solid #eadfd4;
+  border-radius:10px;
+  padding:10px 12px;
+}
+.subtotal-card .row{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.tipo-sep{ border:none; border-top:1px dashed #eadfd4; margin:18px 0 8px; }
+
+.total-general{
+  background:#f8f4f0;
+  border:1px solid #eadfd4;
+  border-radius:12px;
+  padding:14px;
+  margin-top:6px;
+}
+.grid4{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+@media (max-width:720px){ .grid4{ grid-template-columns:1fr 1fr; } }
+
+.footer-ec{ margin-top:22px; }
+.pagos-grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px; margin-top:12px; }
+@media (max-width:720px){ .pagos-grid{ grid-template-columns: 1fr; } }
+.pago-card{
+  background:#f8f4f0;
+  border:1px solid #eadfd4;
+  border-radius:12px;
+  padding:14px;
+  text-align:center;
+}
+.pago-card .sub{ color:#715C47; margin:.2rem 0 .8rem; }
+.qr-box{
+  display:inline-grid;
+  place-items:center;
+  gap:8px;
+  background:#fff;
+  border:1px dashed #CC845E;
+  border-radius:10px;
+  padding:12px;
+}
+.pill-soft.warn{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  background:rgba(171,66,38,.12);
+  color:#7a2315;
+  border:1px solid rgba(171,66,38,.25);
+  font-size:.82rem;
+  font-weight:700;
+}
+
+.btn.mini{
+  padding:6px 10px;
+  font-size:.85rem;
+  border-radius:8px;
+  background:#CC845E;
+  color:#fff;
+  text-decoration:none;
+}
+.btn.mini:hover{ filter:brightness(.95); }
+</style>
+{% endblock %}

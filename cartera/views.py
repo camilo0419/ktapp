@@ -173,6 +173,107 @@ def _formset_marca_vacias_como_delete(post_data, prefix):
     return data
 
 
+TIPO_MAP   = {"natura": "NAT", "accesorios": "ACC", "otros": "OTR"}
+TIPO_LABEL = {"NAT": "Natura", "ACC": "Accesorios", "OTR": "Otros"}
+
+def _parse_tipos(request):
+    raw_list = request.GET.getlist("tipos")
+    if len(raw_list) == 1 and "," in raw_list[0]:
+        raw_list = [x.strip() for x in raw_list[0].split(",") if x.strip()]
+    codes = []
+    for r in raw_list:
+        code = TIPO_MAP.get(r.lower())
+        if code and code not in codes:
+            codes.append(code)
+    return codes or None  # None => todos
+
+@login_required
+def estado_cuenta(request, pk):
+    cliente = get_object_or_404(Cliente, pk=pk)
+    tipos_codes = _parse_tipos(request)
+    hoy = timezone.localdate()
+
+    if not request.GET.get("ready"):
+        return render(request, "cartera/estado_cuenta_select.html", {
+            "cliente": cliente, "hoy": hoy, "tipos_sel": set(tipos_codes or []),
+        })
+
+    qs = (cliente.transacciones
+          .filter(pagado=False)
+          .select_related("cliente")
+          .prefetch_related("items", "abonos")
+          .order_by("-fecha"))
+    if tipos_codes:
+        qs = qs.filter(tipo__in=tipos_codes)
+
+    codes_order = tipos_codes or ["NAT", "ACC", "OTR"]
+
+    grouped = {code: [] for code in codes_order}
+
+    def zero():
+        return {"base": Decimal("0"), "desc": Decimal("0"),
+                "abonado": Decimal("0"), "saldo": Decimal("0")}
+
+    subtotals = {code: zero() for code in codes_order}
+    totals    = zero()
+
+    for tx in qs:
+        base_total = Decimal("0")
+        desc_total = Decimal("0")
+        for it in tx.items.all():
+            base = Decimal(it.precio_unitario or 0) * Decimal(it.cantidad or 0)
+            pct  = Decimal(it.descuento or 0) / Decimal("100")
+            base_total += base
+            desc_total += (base * pct)
+
+        # dejar a mano para el template
+        tx.base_total = base_total
+        tx.desc_total = desc_total
+
+        if tx.tipo in grouped:
+            grouped[tx.tipo].append(tx)
+
+        abonado = Decimal(str(tx.total_abonos or 0))
+        saldo   = Decimal(str(tx.saldo_actual or 0))
+
+        if tx.tipo in subtotals:
+            subtotals[tx.tipo]["base"]    += base_total
+            subtotals[tx.tipo]["desc"]    += desc_total
+            subtotals[tx.tipo]["abonado"] += abonado
+            subtotals[tx.tipo]["saldo"]   += saldo
+
+        totals["base"]    += base_total
+        totals["desc"]    += desc_total
+        totals["abonado"] += abonado
+        totals["saldo"]   += saldo
+
+    tipos_human = [TIPO_LABEL[c] for c in codes_order]
+
+    include_acc    = (tipos_codes is None) or ("ACC" in (tipos_codes or []))
+    include_nonacc = (tipos_codes is None) or any(c in (tipos_codes or []) for c in ("NAT","OTR"))
+    show_liliana   = include_acc
+    show_kathe     = include_nonacc
+
+    grouped_list = []
+    for code in codes_order:
+        grouped_list.append({
+            "code": code,
+            "label": TIPO_LABEL[code],
+            "txs": grouped[code],
+            "subtotal": subtotals[code],
+        })
+
+    return render(request, "cartera/estado_cuenta.html", {
+        "cliente": cliente,
+        "hoy": hoy,
+        "grouped": grouped_list,
+        "totals": totals,
+        "tipos_human": tipos_human,
+        "show_liliana": show_liliana,
+        "show_kathe": show_kathe,
+    })
+
+
 # ========= helpers para formset =========
 
 def _marcar_filas_vacias(formset):
@@ -558,7 +659,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         })
         return ctx
 
-    
+
 
 class TransaccionDetailView(LoginRequiredMixin, DetailView):
     model = Transaccion
@@ -606,3 +707,5 @@ class TransaccionDeleteView(LoginRequiredMixin, DeleteView):
     def get_success_url(self):
         # redirigir al detalle del cliente después del delete
         return reverse_lazy("cartera:clientes_detail", args=[self._cliente_id])
+
+

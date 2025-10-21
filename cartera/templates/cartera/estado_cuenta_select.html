@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Armar estado de cuenta - {{ cliente.nombre }}{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:720px;margin:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <h2 style="margin:0;">Estado de cuenta</h2>
+    <small style="color:#715C47;">{{ hoy|date:"Y-m-d" }}</small>
+  </div>
+  <p style="margin:.2rem 0 1rem"><strong>Cliente:</strong> {{ cliente.nombre }}</p>
+
+  <form method="get" class="grid" style="gap:12px;">
+    <!-- Enviar ready=1 para que la vista renderice el informe -->
+    <input type="hidden" name="ready" value="1">
+
+    <div class="card" style="background:#fff9f5;border:1px dashed #e0c1ae;">
+      <p style="margin-top:0"><strong>¿Qué quieres incluir?</strong></p>
+
+      <label class="chk">
+        <input type="checkbox" name="tipos" value="natura"
+               {% if 'NAT' in tipos_sel %}checked{% endif %}>
+        <span>Natura</span>
+      </label>
+      <label class="chk">
+        <input type="checkbox" name="tipos" value="accesorios"
+               {% if 'ACC' in tipos_sel %}checked{% endif %}>
+        <span>Accesorios</span>
+      </label>
+      <label class="chk">
+        <input type="checkbox" name="tipos" value="otros"
+               {% if 'OTR' in tipos_sel %}checked{% endif %}>
+        <span>Otros</span>
+      </label>
+
+      <p style="margin:.6rem 0 0;color:#715C47;">
+        Si no seleccionas nada, se incluirán <strong>todas</strong> las categorías.
+      </p>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+      <a class="btn alt" href="{% url 'cartera:clientes_detail' cliente.id %}">Cancelar</a>
+      <button class="btn cobre" type="submit">Generar</button>
+    </div>
+  </form>
+</div>
+
+<style>
+.chk{ display:flex; align-items:center; gap:10px; padding:8px 0; }
+.chk input[type="checkbox"]{ width:18px; height:18px; accent-color:#CC845E; }
+</style>
+
+{% endblock %}
