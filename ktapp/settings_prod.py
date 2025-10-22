@@ -23,6 +23,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # BASE_DIR ya viene de settings base
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static" ]
 # En el panel Web de PA, mapea /static/ -> /home/kathem/ktapp/staticfiles
 
 # --- DB ---
