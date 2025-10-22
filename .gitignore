@@ -37,6 +37,8 @@ Thumbs.db
 # Archivos estáticos y medios (solo si se generan automáticamente)
 # Ignorar solo los archivos generados por collectstatic
 staticfiles/
+/staticfiles/
+/static_root/
 !static/ktapp/img/
 
 
