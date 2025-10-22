@@ -35,8 +35,10 @@ Thumbs.db
 *.swo
 
 # Archivos estáticos y medios (solo si se generan automáticamente)
+# Ignorar solo los archivos generados por collectstatic
 staticfiles/
-media/
+!static/ktapp/img/
+
 
 # PyInstaller / build
 dist/
