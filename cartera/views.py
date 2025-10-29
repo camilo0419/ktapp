@@ -434,67 +434,110 @@ from utils.pdf import link_callback  # NUEVO import
 from xhtml2pdf import pisa
 
 def _sanitize_filename_part(s: str) -> str:
-    """Quita caracteres problemáticos para nombres de archivo."""
     safe = s.replace(" ", "_")
     return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in safe).strip("_")
 
 
+def _weasy_url_fetcher(url):
+    """
+    Fetcher para WeasyPrint que convierte /static y /media a archivos locales.
+    Evita llamadas HTTP (que el plan gratuito de PA suele bloquear).
+    """
+    # WeasyPrint espera un dict con 'file_obj' o 'redirected_url', etc.
+    # Documentado en: https://doc.courtbouillon.org/weasyprint/stable/api_reference.html#url-fetchers
+    from weasyprint import default_url_fetcher
+
+    # STATIC
+    static_url = getattr(settings, "STATIC_URL", "/static/")
+    if url.startswith(static_url):
+        rel = url.replace(static_url, "")
+        base = settings.STATIC_ROOT or ""
+        path = os.path.join(base, rel)
+        if os.path.isfile(path):
+            return {"file_obj": open(path, "rb")}
+        # fallback: intenta con finders via link_callback
+        try:
+            path2 = link_callback(url, None)
+            if os.path.isfile(path2):
+                return {"file_obj": open(path2, "rb")}
+        except Exception:
+            pass
+
+    # MEDIA
+    media_url = getattr(settings, "MEDIA_URL", "/media/")
+    if media_url and url.startswith(media_url):
+        rel = url.replace(media_url, "")
+        base = settings.MEDIA_ROOT or ""
+        path = os.path.join(base, rel)
+        if os.path.isfile(path):
+            return {"file_obj": open(path, "rb")}
+
+    # file:// rutas absolutas
+    if url.startswith("file://"):
+        local = url[7:]
+        if os.path.isfile(local):
+            return {"file_obj": open(local, "rb")}
+
+    # Deja que WeasyPrint maneje el resto (CSS externos, etc.)
+    return default_url_fetcher(url)
+
 
 @login_required
 def estado_cuenta_pdf(request, pk):
-    # --- Datos y contexto ---
     cliente = get_object_or_404(Cliente, pk=pk)
     tipos_codes = _parse_tipos(request)
     ctx = _build_estado_ctx(request, cliente, tipos_codes)
 
     html_string = render_to_string("cartera/estado_cuenta_pdf.html", ctx, request=request)
-    engine = _pick_engine()  # 'weasyprint' o 'xhtml2pdf'
 
-    # Sufijo de tipos para el nombre del archivo
+    # Sufijo para nombre del archivo
     tipos_human = ctx.get("tipos_human", []) or []
     tipo_sufijo = "-".join(tipos_human) if tipos_human else "Todos"
 
-    # Nombre de archivo seguro
     safe_name = _sanitize_filename_part(cliente.nombre)
     safe_tipo = _sanitize_filename_part(tipo_sufijo)
     filename = f"Estado_de_Cuenta_{safe_name}_{safe_tipo}.pdf"
 
-    # --- Opción A: WeasyPrint (si está disponible) ---
-    if engine == "weasyprint":
-        try:
-            from weasyprint import HTML, CSS
-            base_url = request.build_absolute_uri("/")
-            pdf_bytes = HTML(string=html_string, base_url=base_url).write_pdf(
-                stylesheets=[
-                    CSS(string="""
-                        @page { size: A4; margin: 18mm; }
-                        * { -weasy-hyphens: auto; }
-                    """)
-                ]
-            )
-            resp = HttpResponse(pdf_bytes, content_type="application/pdf")
-            resp["Content-Disposition"] = f'attachment; filename="{filename}"'
-            return resp
-        except Exception:
-            # Si falla Weasy, caemos a xhtml2pdf
-            pass
+    # ====== Intento A: WeasyPrint (con fetcher local) ======
+    # Aunque _pick_engine() te diga 'weasyprint', aquí lo forzamos a usar fetcher
+    # para evitar HTTP. Si algo falla, caemos a xhtml2pdf.
+    try:
+        from weasyprint import HTML, CSS
+        # base_url puede ser el sitio; pero como tenemos fetcher que resuelve a disco,
+        # no dependemos de HTTP.
+        base_url = request.build_absolute_uri("/")
+        pdf_bytes = HTML(
+            string=html_string,
+            base_url=base_url,
+            url_fetcher=_weasy_url_fetcher,  # <- CLAVE
+        ).write_pdf(
+            stylesheets=[
+                CSS(string="""
+                    @page { size: A4; margin: 18mm; }
+                    * { -weasy-hyphens: auto; }
+                """)
+            ]
+        )
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return resp
+    except Exception:
+        pass  # cae a xhtml2pdf
 
-    # --- Opción B: xhtml2pdf (con link_callback) ---
+    # ====== Intento B: xhtml2pdf (con link_callback) ======
     pdf_io = BytesIO()
     pisa_status = pisa.CreatePDF(
         src=html_string,
         dest=pdf_io,
         encoding="utf-8",
-        link_callback=link_callback,  # <- clave para resolver { % static % }
+        link_callback=link_callback,  # resuelve STATIC/MEDIA a disco
     )
     if pisa_status.err:
-        # Puedes registrar logs aquí si quieres ver detalles
         raise Http404("No se pudo generar el PDF.")
 
     resp = HttpResponse(pdf_io.getvalue(), content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
-
 
 # ========= helpers para formset =========
 
