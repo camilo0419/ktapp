@@ -440,45 +440,56 @@ def _sanitize_filename_part(s: str) -> str:
 
 def _weasy_url_fetcher(url):
     """
-    Fetcher para WeasyPrint que convierte /static y /media a archivos locales.
-    Evita llamadas HTTP (que el plan gratuito de PA suele bloquear).
+    Fetcher para WeasyPrint que convierte URLs absolutas o paths de /static y /media
+    a archivos locales en disco (evita HTTP en PA free).
     """
-    # WeasyPrint espera un dict con 'file_obj' o 'redirected_url', etc.
-    # Documentado en: https://doc.courtbouillon.org/weasyprint/stable/api_reference.html#url-fetchers
+    from urllib.parse import urlsplit
     from weasyprint import default_url_fetcher
+    from django.conf import settings
+    import os
+
+    # Normaliza: si viene https://... extrae el path (/static/... o /media/...)
+    try:
+        parts = urlsplit(url)
+        path = parts.path or url  # si no es URL, deja tal cual
+    except Exception:
+        path = url
+
+    static_url = getattr(settings, "STATIC_URL", "/static/")
+    media_url = getattr(settings, "MEDIA_URL", "/media/")
 
     # STATIC
-    static_url = getattr(settings, "STATIC_URL", "/static/")
-    if url.startswith(static_url):
-        rel = url.replace(static_url, "")
-        base = settings.STATIC_ROOT or ""
-        path = os.path.join(base, rel)
-        if os.path.isfile(path):
-            return {"file_obj": open(path, "rb")}
-        # fallback: intenta con finders via link_callback
+    if path.startswith(static_url):
+        rel = path.replace(static_url, "", 1)
+        # 1) STATIC_ROOT (prod)
+        if settings.STATIC_ROOT:
+            fs_path = os.path.join(settings.STATIC_ROOT, rel)
+            if os.path.isfile(fs_path):
+                return {"file_obj": open(fs_path, "rb")}
+        # 2) Fallback: usa el mismo resolver que xhtml2pdf
         try:
-            path2 = link_callback(url, None)
-            if os.path.isfile(path2):
-                return {"file_obj": open(path2, "rb")}
+            from utils.pdf import link_callback
+            fs_path = link_callback(path, None)
+            if os.path.isfile(fs_path):
+                return {"file_obj": open(fs_path, "rb")}
         except Exception:
             pass
 
     # MEDIA
-    media_url = getattr(settings, "MEDIA_URL", "/media/")
-    if media_url and url.startswith(media_url):
-        rel = url.replace(media_url, "")
-        base = settings.MEDIA_ROOT or ""
-        path = os.path.join(base, rel)
-        if os.path.isfile(path):
-            return {"file_obj": open(path, "rb")}
+    if media_url and path.startswith(media_url):
+        rel = path.replace(media_url, "", 1)
+        if getattr(settings, "MEDIA_ROOT", None):
+            fs_path = os.path.join(settings.MEDIA_ROOT, rel)
+            if os.path.isfile(fs_path):
+                return {"file_obj": open(fs_path, "rb")}
 
-    # file:// rutas absolutas
+    # file://
     if url.startswith("file://"):
         local = url[7:]
         if os.path.isfile(local):
             return {"file_obj": open(local, "rb")}
 
-    # Deja que WeasyPrint maneje el resto (CSS externos, etc.)
+    # data:… o cualquier otro recurso
     return default_url_fetcher(url)
 
 
@@ -508,8 +519,8 @@ def estado_cuenta_pdf(request, pk):
         base_url = request.build_absolute_uri("/")
         pdf_bytes = HTML(
             string=html_string,
-            base_url=base_url,
-            url_fetcher=_weasy_url_fetcher,  # <- CLAVE
+            base_url=request.build_absolute_uri("/"),
+            url_fetcher=_weasy_url_fetcher,   # <- CLAVE
         ).write_pdf(
             stylesheets=[
                 CSS(string="""
