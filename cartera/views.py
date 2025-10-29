@@ -199,37 +199,51 @@ def _parse_tipos(request):
             codes.append(code)
     return codes or None
 
-def _link_callback_fast(uri, rel):
-    """
-    xhtml2pdf: mapea /static/... y /media/... a rutas de disco.
-    Evita resolver por HTTP y acelera el render.
-    """
-    s = urlparse(uri)
-    path = s.path or uri
+# utils/pdf.py
+import os
+from django.conf import settings
+from django.contrib.staticfiles import finders
 
+def link_callback(uri, rel):
+    """
+    Convierte URIs de /static/ y /media/ a rutas absolutas en disco.
+    Sirve tanto en local (sin collectstatic) como en producción.
+    """
     # STATIC
-    if path.startswith(settings.STATIC_URL):
-        rel_path = path.replace(settings.STATIC_URL, "", 1)
-        full_path = os.path.join(settings.STATIC_ROOT or "", rel_path)
-        if not os.path.exists(full_path):
-            # fallback a dirs en STATICFILES_DIRS
-            for d in getattr(settings, "STATICFILES_DIRS", []):
-                candidate = os.path.join(d, rel_path)
-                if os.path.exists(candidate):
-                    full_path = candidate
-                    break
-        if os.path.exists(full_path):
-            return full_path
+    if uri.startswith(settings.STATIC_URL):
+        rel_path = uri.replace(settings.STATIC_URL, "")
+        if settings.STATIC_ROOT:
+            path = os.path.join(settings.STATIC_ROOT, rel_path)
+            if os.path.isfile(path):
+                return path
+        found = finders.find(rel_path)
+        if found:
+            return found
+        if os.path.isfile(uri):
+            return uri
+        raise FileNotFoundError(f"[xhtml2pdf] STATIC no encontrado: {uri}")
 
     # MEDIA
-    if hasattr(settings, "MEDIA_URL") and path.startswith(settings.MEDIA_URL):
-        rel_path = path.replace(settings.MEDIA_URL, "", 1)
-        full_path = os.path.join(settings.MEDIA_ROOT or "", rel_path)
-        if os.path.exists(full_path):
-            return full_path
+    if getattr(settings, "MEDIA_URL", None) and uri.startswith(settings.MEDIA_URL):
+        rel_path = uri.replace(settings.MEDIA_URL, "")
+        if settings.MEMEDIA_ROOT:
+            path = os.path.join(settings.MEDIA_ROOT, rel_path)
+            if os.path.isfile(path):
+                return path
+        if os.path.isfile(uri):
+            return uri
+        raise FileNotFoundError(f"[xhtml2pdf] MEDIA no encontrado: {uri}")
 
-    # Como último recurso, devuelve tal cual (xhtml2pdf intentará usarlo)
+    # Rutas absolutas locales o file://
+    if uri.startswith("file://"):
+        local_path = uri[7:]
+        if os.path.isfile(local_path):
+            return local_path
+    if os.path.isabs(uri) and os.path.isfile(uri):
+        return uri
+
     return uri
+
 
 def _pick_engine():
     """
@@ -416,63 +430,70 @@ def _build_estado_ctx(request, cliente, tipos_codes):
         "show_kathe": show_kathe,
     }
 
+from utils.pdf import link_callback  # NUEVO import
+from xhtml2pdf import pisa
+
+def _sanitize_filename_part(s: str) -> str:
+    """Quita caracteres problemáticos para nombres de archivo."""
+    safe = s.replace(" ", "_")
+    return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in safe).strip("_")
+
+
+
 @login_required
 def estado_cuenta_pdf(request, pk):
-    from .models import Cliente
+    # --- Datos y contexto ---
     cliente = get_object_or_404(Cliente, pk=pk)
     tipos_codes = _parse_tipos(request)
     ctx = _build_estado_ctx(request, cliente, tipos_codes)
 
     html_string = render_to_string("cartera/estado_cuenta_pdf.html", ctx, request=request)
-    engine = _pick_engine()
+    engine = _pick_engine()  # 'weasyprint' o 'xhtml2pdf'
 
-    # Determinar sufijo de tipos (Natura, Accesorios, Otros o Todos)
-    tipos_human = ctx.get("tipos_human", [])
-    if not tipos_human:
-        tipo_sufijo = "Todos"
-    else:
-        tipo_sufijo = "-".join(tipos_human)
+    # Sufijo de tipos para el nombre del archivo
+    tipos_human = ctx.get("tipos_human", []) or []
+    tipo_sufijo = "-".join(tipos_human) if tipos_human else "Todos"
 
-    # Sanitizar nombre (evitar espacios o caracteres no válidos)
-    safe_name = cliente.nombre.replace(" ", "_")
-    safe_tipo = tipo_sufijo.replace(" ", "_")
-
-    # Nombre final de archivo
+    # Nombre de archivo seguro
+    safe_name = _sanitize_filename_part(cliente.nombre)
+    safe_tipo = _sanitize_filename_part(tipo_sufijo)
     filename = f"Estado_de_Cuenta_{safe_name}_{safe_tipo}.pdf"
 
-    # ==== Generación PDF ====
+    # --- Opción A: WeasyPrint (si está disponible) ---
     if engine == "weasyprint":
         try:
             from weasyprint import HTML, CSS
             base_url = request.build_absolute_uri("/")
-            pdf = HTML(string=html_string, base_url=base_url).write_pdf(
-                stylesheets=[CSS(string="""
-                    @page { size: A4; margin: 18mm; }
-                    * { -weasy-hyphens: auto; }
-                """)]
+            pdf_bytes = HTML(string=html_string, base_url=base_url).write_pdf(
+                stylesheets=[
+                    CSS(string="""
+                        @page { size: A4; margin: 18mm; }
+                        * { -weasy-hyphens: auto; }
+                    """)
+                ]
             )
-            resp = HttpResponse(pdf, content_type="application/pdf")
+            resp = HttpResponse(pdf_bytes, content_type="application/pdf")
             resp["Content-Disposition"] = f'attachment; filename="{filename}"'
             return resp
         except Exception:
-            # caemos al plan B
+            # Si falla Weasy, caemos a xhtml2pdf
             pass
 
-    # === xhtml2pdf (rápido en Windows/local) ===
-    from xhtml2pdf import pisa
+    # --- Opción B: xhtml2pdf (con link_callback) ---
     pdf_io = BytesIO()
     pisa_status = pisa.CreatePDF(
-        html_string,
+        src=html_string,
         dest=pdf_io,
         encoding="utf-8",
-        link_callback=_link_callback_fast,
+        link_callback=link_callback,  # <- clave para resolver { % static % }
     )
     if pisa_status.err:
+        # Puedes registrar logs aquí si quieres ver detalles
         raise Http404("No se pudo generar el PDF.")
+
     resp = HttpResponse(pdf_io.getvalue(), content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
-
 
 
 # ========= helpers para formset =========
