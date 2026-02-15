@@ -4,14 +4,32 @@
 {% block title %}Estado de cuenta - {{ cliente.nombre }}{% endblock %}
 {% block content %}
 
+{% with pdf_url=pdf_url|default:None %}
+{% endwith %}
+
 <div class="card estado-cuenta">
+
+  {# URL del PDF (con los filtros actuales) #}
+  {% with pdf_href=pdf_href|default:None %}
+  {% endwith %}
+  {% with PDF_HREF=pdf_href|default:'' %}
+  {% endwith %}
 
   <!-- Botón flotante PDF -->
   <a class="fab-pdf"
+     id="btnPdf"
      href="{% url 'cartera:estado_cuenta_pdf' cliente.id %}?{{ request.GET.urlencode|default:'ready=1' }}"
-     title="Descargar PDF">
+     title="Abrir/Descargar PDF">
     ⬇️ PDF
   </a>
+
+  <!-- ✅ Botón flotante Compartir -->
+  <button type="button"
+          class="fab-share"
+          id="btnSharePdf"
+          title="Compartir PDF">
+    ⤴︎ Compartir
+  </button>
 
   <!-- Barra superior con volver -->
   <div class="topbar">
@@ -31,8 +49,8 @@
 
     <div class="cliente-info">
       <h2>{{ cliente.nombre }}</h2>
-      {% if cliente.telefono %}<p>📞 {{ cliente.telefono }}</p>{% endif %}
-      {% if cliente.correo %}<p>✉️ {{ cliente.correo }}</p>{% endif %}
+      {% if cliente.telefono %}<p>Tel: {{ cliente.telefono }}</p>{% endif %}
+      {% if cliente.correo %}<p>Email: {{ cliente.correo }}</p>{% endif %}
       <span class="pill-soft warn">Solo transacciones pendientes</span>
     </div>
   </div>
@@ -166,6 +184,94 @@
   </div>
 </div>
 
+<script>
+(function(){
+  const btn = document.getElementById("btnSharePdf");
+  const pdfLink = document.getElementById("btnPdf");
+
+  if (!btn || !pdfLink) return;
+
+  function absoluteUrl(href){
+    try { return new URL(href, window.location.origin).toString(); }
+    catch(e){ return href; }
+  }
+
+  async function copyToClipboard(text){
+    try{
+      await navigator.clipboard.writeText(text);
+      return true;
+    }catch(e){
+      // fallback viejo
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      let ok = false;
+      try{ ok = document.execCommand("copy"); }catch(_){ ok = false; }
+      ta.remove();
+      return ok;
+    }
+  }
+
+  async function fetchAsFile(url){
+    const res = await fetch(url, { credentials: "same-origin" });
+    if(!res.ok) throw new Error("No se pudo descargar el PDF");
+    const blob = await res.blob();
+    const filename = "EstadoCuenta-{{ cliente.nombre|default:'cliente'|slugify }}-{{ hoy|date:'Ymd' }}.pdf";
+    return new File([blob], filename, { type: "application/pdf" });
+  }
+
+  btn.addEventListener("click", async () => {
+    const url = absoluteUrl(pdfLink.getAttribute("href"));
+    btn.disabled = true;
+    const oldTxt = btn.textContent;
+    btn.textContent = "Preparando...";
+
+    try{
+      // 1) Si el navegador soporta compartir archivos, lo hacemos con el PDF como File
+      if (navigator.share && navigator.canShare) {
+        const file = await fetchAsFile(url);
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: "Estado de cuenta",
+            text: "Te comparto el estado de cuenta en PDF.",
+            files: [file],
+          });
+          return;
+        }
+      }
+
+      // 2) Fallback: compartir enlace (iOS suele mostrar sheet)
+      if (navigator.share) {
+        await navigator.share({
+          title: "Estado de cuenta",
+          text: "Enlace al estado de cuenta (PDF):",
+          url: url,
+        });
+        return;
+      }
+
+      // 3) Fallback final: copiar link y abrir PDF
+      const ok = await copyToClipboard(url);
+      if(ok) alert("✅ Copié el enlace del PDF. Pégalo en WhatsApp/Correo y listo.");
+      window.open(url, "_blank");
+    } catch(err){
+      console.log(err);
+      // fallback suave
+      const ok = await copyToClipboard(url);
+      if(ok) alert("Copié el enlace del PDF. Si no se abrió, pégalo en WhatsApp/Correo.");
+      else alert("No pude compartir automáticamente. Abriendo el PDF...");
+      window.open(url, "_blank");
+    } finally {
+      btn.textContent = oldTxt;
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+
 <style>
 .estado-cuenta{
   max-width:900px; margin:0 auto;
@@ -286,5 +392,25 @@
 }
 .fab-pdf:hover{ filter: brightness(.95); }
 @media print{ .fab-pdf{ display:none !important; } }
+
+/* ✅ FAB Share */
+.fab-share{
+  position: fixed;
+  right: 16px;
+  bottom: 22px;
+  background: #fff;
+  border: 1px solid rgba(204,132,94,.45);
+  color: #7a2315;
+  font-weight: 900;
+  padding: 12px 14px;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  z-index: 50;
+  cursor: pointer;
+}
+.fab-share:hover{ filter: brightness(.98); }
+.fab-share:disabled{ opacity:.6; cursor:not-allowed; }
+@media print{ .fab-share{ display:none !important; } }
 </style>
+
 {% endblock %}
