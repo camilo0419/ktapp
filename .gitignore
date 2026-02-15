@@ -53,3 +53,4 @@ build/
 .eggs/
 .Python
 pip-wheel-metadata/
+db.sqlite3.*.bak
