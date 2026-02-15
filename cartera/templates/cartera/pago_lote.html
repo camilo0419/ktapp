@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% load currency %}
+{% block title %}Registrar pago - {{ cliente.nombre }}{% endblock %}
+{% block content %}
+
+<div class="card" style="max-width:900px;margin:0 auto;">
+  <h2 style="margin-top:0;">Registrar pago</h2>
+  <p style="margin-top:-6px;color:var(--muted);"><strong>{{ cliente.nombre }}</strong></p>
+
+  <form method="post" class="grid" id="pagoLoteForm">
+    {% csrf_token %}
+
+    <div class="grid cols-2" style="gap:12px;">
+      <label>Valor total del pago
+        <input class="input" type="number" step="1" min="0" name="total_valor" id="id_total_valor" placeholder="0">
+      </label>
+
+      <label>Fecha de pago
+        <input class="input" type="date" name="fecha_pago" id="id_fecha_pago" value="{{ today|default:'' }}">
+      </label>
+
+      <label>Hora
+        <input class="input" type="time" name="hora_pago" id="id_hora_pago" value="">
+      </label>
+
+      <label>Forma de pago
+        <select class="input" name="metodo" id="id_metodo">
+          <option value="NEQ">Nequi</option>
+          <option value="BAN" selected>Bancolombia</option>
+          <option value="EFE">Efectivo</option>
+          <option value="CRU">Cruce de cuentas</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="cruce-wrap" style="display:none;">
+      <label>Descripción del cruce
+        <input class="input" type="text" name="descripcion_cruce" id="id_descripcion_cruce" placeholder="Ej: Cruce con factura X / cuenta Y">
+      </label>
+    </div>
+
+    <label>Notas (opcional)
+      <input class="input" type="text" name="notas" placeholder="Notas">
+    </label>
+
+    <hr style="border:none;border-top:1px solid rgba(0,0,0,.06);margin:6px 0 0;">
+
+    <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h3 style="margin:0;">Transacciones a abonar</h3>
+      <label style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="id_select_all"> Seleccionar todas
+      </label>
+    </div>
+
+    <div class="card" style="background:rgba(220,208,194,.25);box-shadow:none;">
+      <div class="tx-lote-list">
+        {% for t in pendientes %}
+          {# ✅ data-saldo usa lo mismo que se muestra (cop), para evitar inflar por decimales/formatos #}
+          <div class="tx-lote-row" data-saldo="{{ t.saldo_actual|cop }}">
+            <label class="tx-check">
+              <input type="checkbox" name="tx_ids" value="{{ t.id }}" class="tx-item-check">
+              <div>
+                <div><strong>#{{ t.id }}</strong> · {{ t.fecha|date:"Y-m-d" }} · {{ t.get_tipo_display }}</div>
+                <div class="muted">Pendiente: <strong>{{ t.saldo_actual|cop }}</strong></div>
+              </div>
+            </label>
+            <div class="tx-monto">
+              <input class="input" type="number" step="1" min="0" name="monto_{{ t.id }}" placeholder="$ 0">
+              <small class="help">Opcional (si lo dejas vacío, se auto-distribuye)</small>
+            </div>
+          </div>
+        {% empty %}
+          <div class="muted">No hay transacciones pendientes.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div>
+        <div class="muted" style="font-size:13px;">
+          <span>Seleccionadas:</span> <strong id="ui_sel_count">0</strong>
+          <span style="margin-left:10px;">Pendiente seleccionado:</span> <strong id="ui_abono_total">$0</strong>
+        </div>
+        <div><small class="muted">Restante por distribuir:</small> <strong id="ui_restante">$0</strong></div>
+      </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;">
+        <a class="btn alt" href="{% url 'cartera:clientes_detail' cliente.id %}">Cancelar</a>
+        <button class="btn cobre" type="submit">Registrar pago</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+(function(){
+  // defaults: hoy + hora actual
+  const fecha = document.getElementById('id_fecha_pago');
+  const hora = document.getElementById('id_hora_pago');
+  if(fecha && !fecha.value){
+    const d = new Date();
+    fecha.value = d.toISOString().slice(0,10);
+  }
+  if(hora && !hora.value){
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    hora.value = `${hh}:${mm}`;
+  }
+
+  const metodo = document.getElementById('id_metodo');
+  const cruceWrap = document.getElementById('cruce-wrap');
+  function syncCruce(){
+    if(!metodo || !cruceWrap) return;
+    cruceWrap.style.display = (metodo.value === 'CRU') ? 'block' : 'none';
+  }
+  if(metodo){ metodo.addEventListener('change', syncCruce); }
+  syncCruce();
+
+  const selectAll = document.getElementById('id_select_all');
+  const checks = Array.from(document.querySelectorAll('.tx-item-check'));
+  const totalInput = document.getElementById('id_total_valor');
+
+  function parseCOP(v){
+    if(v === null || v === undefined) return 0;
+    // soporta "$164.065", "164.065", "164065", "164065.00", etc.
+    const cleaned = String(v).replace(/[^\d-]/g, '');
+    const n = parseInt(cleaned || '0', 10);
+    return Number.isNaN(n) ? 0 : n;
+  }
+
+  function fmtCOP(n){
+    const num = Number(n || 0);
+    return '$' + num.toLocaleString('es-CO');
+  }
+
+  function calc(){
+    const total = parseCOP(totalInput ? totalInput.value : 0);
+
+    let explicit = 0;
+    let selectedSum = 0;
+    let selectedCount = 0;
+
+    document.querySelectorAll('.tx-lote-row').forEach(row=>{
+      const chk = row.querySelector('.tx-item-check');
+      const inp = row.querySelector('input[type="number"]');
+
+      if(chk && chk.checked){
+        selectedCount += 1;
+
+        // ✅ suma pendiente seleccionado (sin inflarse)
+        selectedSum += parseCOP(row.dataset.saldo);
+
+        // ✅ suma montos explícitos escritos
+        if(inp && inp.value){
+          explicit += parseCOP(inp.value);
+        }
+      }
+    });
+
+    const restante = Math.max(total - explicit, 0);
+
+    document.getElementById('ui_sel_count').textContent = String(selectedCount);
+    document.getElementById('ui_abono_total').textContent = fmtCOP(selectedSum);
+    document.getElementById('ui_restante').textContent = fmtCOP(restante);
+
+    // mantener select-all consistente
+    if(selectAll && checks.length){
+      selectAll.checked = checks.every(c => c.checked);
+    }
+  }
+
+  if(selectAll){
+    selectAll.addEventListener('change', ()=>{
+      checks.forEach(c=> c.checked = selectAll.checked);
+      calc();
+    });
+  }
+  checks.forEach(c=> c.addEventListener('change', calc));
+  document.querySelectorAll('.tx-lote-row input[type="number"]').forEach(i=> i.addEventListener('input', calc));
+  if(totalInput) totalInput.addEventListener('input', calc);
+
+  calc();
+})();
+</script>
+
+{% endblock %}

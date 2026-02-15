@@ -45,13 +45,16 @@ class ClienteListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         q = (self.request.GET.get("q") or "").strip()
         qs = Cliente.objects.all()
+        incluir_inactivos = bool(self.request.GET.get('inactivos'))
+        if not incluir_inactivos:
+            qs = qs.filter(activo=True)
         if q:
             qs = qs.filter(
                 Q(nombre__icontains=q) |
                 Q(telefono__icontains=q) |
                 Q(correo__icontains=q)
             )
-        return qs.order_by("nombre")
+        return qs.order_by('nombre')
 
     def get(self, request, *args, **kwargs):
         resp = super().get(request, *args, **kwargs)
@@ -72,6 +75,7 @@ class ClienteCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("cartera:clientes_list")
 
     def form_valid(self, form):
+        # ✅ Crear cliente (sin lógica de pagos aquí)
         resp = super().form_valid(form)
         track(self.request, "cliente_create", "action",
               etiqueta=f"cliente_id={self.object.id}",
@@ -226,7 +230,7 @@ def link_callback(uri, rel):
     # MEDIA
     if getattr(settings, "MEDIA_URL", None) and uri.startswith(settings.MEDIA_URL):
         rel_path = uri.replace(settings.MEDIA_URL, "")
-        if settings.MEMEDIA_ROOT:
+        if settings.MEDIA_ROOT:
             path = os.path.join(settings.MEDIA_ROOT, rel_path)
             if os.path.isfile(path):
                 return path
@@ -576,6 +580,53 @@ def _marcar_filas_vacias(formset):
     return no_vacias
 
 
+def crear_abono_automatico_si_pagada(request, tx: Transaccion):
+    """
+    Si la transacción está pagada y NO tiene abonos, crea 1 abono por el total.
+    Lee metodo/fecha/hora/notas del POST (si vienen desde el form).
+    """
+    if not tx.pagado:
+        return
+    if tx.abonos.exists():
+        return
+
+    metodo = (request.POST.get("metodo") or "").strip() or Abono.BANCOLOMBIA
+    fecha_str = (request.POST.get("fecha_pago") or "").strip()
+    hora_str = (request.POST.get("hora_pago") or "").strip()
+
+    # notas
+    notas = (request.POST.get("notas_pago") or "").strip()
+    desc_cruce = (request.POST.get("descripcion_cruce") or "").strip()
+    if metodo == Abono.CRUCE and desc_cruce:
+        notas = (notas + " | " if notas else "") + f"Cruce: {desc_cruce}"
+
+    # fecha/hora fallback
+    now = timezone.localtime()
+    fecha = now.date()
+    hora = now.time().replace(second=0, microsecond=0)
+
+    # parse
+    try:
+        if fecha_str:
+            fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+    except Exception:
+        pass
+    try:
+        if hora_str:
+            hora = datetime.strptime(hora_str, "%H:%M").time()
+    except Exception:
+        pass
+
+    Abono.objects.create(
+        transaccion=tx,
+        fecha=fecha,
+        hora=hora,
+        metodo=metodo,
+        valor=Decimal(str(tx.valor_a_pagar or 0)),
+        notas=notas,
+        descripcion_cruce=desc_cruce if metodo == Abono.CRUCE else "",
+    )
+
 # ========= TRANSACCIONES =========
 
 class TransaccionCreateView(LoginRequiredMixin, CreateView):
@@ -620,6 +671,10 @@ class TransaccionCreateView(LoginRequiredMixin, CreateView):
         self.object = form.save()
         formset.instance = self.object
         formset.save()
+
+        # ✅ CLAVE: crear abono automático si viene marcada como pagada
+        crear_abono_automatico_si_pagada(self.request, self.object)
+
         track(
             self.request, "tx_create", "action",
             etiqueta=f"cliente_id={self.object.cliente_id}",
@@ -681,6 +736,10 @@ class TransaccionUpdateView(LoginRequiredMixin, UpdateView):
         self.object = form.save()
         formset.instance = self.object
         formset.save()
+
+        # ✅ NUEVO: si la marcaron pagada en editar, crear 1 abono automático
+        crear_abono_automatico_si_pagada(self.request, self.object)
+
         track(
             self.request, "tx_update", "action",
             etiqueta=f"tx_id={self.object.id}",
@@ -705,10 +764,12 @@ def transaccion_marcar_pagado(request, pk):
     # Marcar como pagada y dejar que el save() del modelo ponga pagado_en
     if not tx.pagado:
         tx.pagado = True
-        tx.save(update_fields=["pagado", "pagado_en"])
+        tx.fecha_pago = timezone.localdate()
+        tx.save(update_fields=["pagado", "pagado_en", "fecha_pago"])
     else:
         # Si ya estaba pagada, asegúrate de que tenga timestamp
-        tx.save(update_fields=["pagado", "pagado_en"])
+        tx.fecha_pago = timezone.localdate()
+        tx.save(update_fields=["pagado", "pagado_en", "fecha_pago"])
 
     track(
         request, "tx_pagada", "action",
@@ -721,6 +782,34 @@ def transaccion_marcar_pagado(request, pk):
 
 
 # ========= ABONOS =========
+
+class AbonoListView(LoginRequiredMixin, ListView):
+    model = Abono
+    template_name = "cartera/abonos_list.html"
+    context_object_name = "abonos"
+    paginate_by = 10
+
+    def get_queryset(self):
+        qs = (
+            Abono.objects.select_related("transaccion", "transaccion__cliente")
+            .all()
+            .order_by("-creado")
+        )
+
+        q = (self.request.GET.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(transaccion__cliente__nombre__icontains=q)
+                | Q(transaccion__cliente__telefono__icontains=q)
+                | Q(transaccion__cliente__correo__icontains=q)
+                | Q(transaccion__id__icontains=q)
+            )
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["q"] = (self.request.GET.get("q") or "").strip()
+        return ctx
 
 class AbonoCreateView(LoginRequiredMixin, CreateView):
     model = Abono
@@ -756,14 +845,10 @@ class AbonoCreateView(LoginRequiredMixin, CreateView):
         return form
 
     def form_valid(self, form):
-        resp = super().form_valid(form)
-        track(
-            self.request, "abono_create", "action",
-            etiqueta=f"tx_id={self.tx.id}",
-            extras={"valor": float(self.object.valor), "saldo_post": float(getattr(self.tx, "saldo_actual", 0.0))},
-        )
-        messages.success(self.request, "Abono registrado.")
-        return resp
+        response = super().form_valid(form)  # o tu lógica de guardado
+        tx = self.object  # si usas CBV, normalmente aquí queda
+        self._crear_abono_si_pagada(tx)
+        return response
 
     def get_success_url(self):
         return reverse_lazy("cartera:clientes_detail", args=[self.tx.cliente_id])
@@ -784,6 +869,140 @@ def abono_delete(request, pk):
     )
     messages.success(request, "Abono eliminado.")
     return redirect("cartera:clientes_detail", pk=cliente_id)
+
+
+
+# ========= PAGOS EN LOTE (por cliente) =========
+@login_required
+def pago_lote(request, pk):
+    cliente = get_object_or_404(Cliente, pk=pk)
+    # pendientes (incluye no pagadas)
+    pendientes = list(
+        Transaccion.objects.filter(cliente=cliente, pagado=False).order_by("fecha", "id")
+    )
+
+    if request.method == "POST":
+        try:
+            total_valor = Decimal((request.POST.get("total_valor") or "0").replace(",", "").strip() or "0")
+        except Exception:
+            total_valor = Decimal("0")
+
+        fecha_pago = request.POST.get("fecha_pago") or timezone.localdate().isoformat()
+        hora_pago = request.POST.get("hora_pago") or timezone.localtime().time().replace(microsecond=0).strftime("%H:%M")
+        metodo = request.POST.get("metodo") or Abono.BANCOLOMBIA
+        descripcion_cruce = (request.POST.get("descripcion_cruce") or "").strip()
+        notas = (request.POST.get("notas") or "").strip()
+
+        # parse fecha/hora
+        try:
+            fecha_obj = datetime.strptime(fecha_pago, "%Y-%m-%d").date()
+        except Exception:
+            fecha_obj = timezone.localdate()
+        try:
+            hora_obj = datetime.strptime(hora_pago, "%H:%M").time()
+        except Exception:
+            hora_obj = timezone.localtime().time().replace(microsecond=0)
+
+        if metodo == Abono.CRUCE and not descripcion_cruce:
+            messages.error(request, "Para Cruce de cuentas debes indicar la descripción.")
+            return render(request, "cartera/pago_lote.html", {"cliente": cliente, "pendientes": pendientes})
+
+        selected_ids = request.POST.getlist("tx_ids")
+        selected_ids_int = [int(x) for x in selected_ids if str(x).isdigit()]
+        if total_valor <= 0:
+            messages.error(request, "El valor del pago debe ser mayor a 0.")
+            return render(request, "cartera/pago_lote.html", {"cliente": cliente, "pendientes": pendientes})
+        # ✅ Si no seleccionan ninguna, aplicamos automáticamente a las más antiguas.
+        # (Esto permite registrar pagos rápidos sin tener que marcar checks.)
+
+        # helper: saldo por tx
+        tx_by_id = {t.id: t for t in pendientes}
+        selected_txs = [tx_by_id[i] for i in selected_ids_int if i in tx_by_id]
+
+        # 1) aplicar valores explícitos (inputs)
+        aplicado_por_tx = {t.id: Decimal("0") for t in selected_txs}
+        total_explicito = Decimal("0")
+        for t in selected_txs:
+            raw = (request.POST.get(f"monto_{t.id}") or "").strip()
+            if not raw:
+                continue
+            try:
+                v = Decimal(raw.replace(",", ""))
+            except Exception:
+                v = Decimal("0")
+            if v <= 0:
+                continue
+            saldo = Decimal(str(t.saldo_actual))
+            if v > saldo:
+                v = saldo
+            aplicado_por_tx[t.id] += v
+            total_explicito += v
+
+        restante = total_valor - total_explicito
+        if restante < 0:
+            messages.error(request, "La suma de montos por transacción excede el total del pago.")
+            return render(request, "cartera/pago_lote.html", {"cliente": cliente, "pendientes": pendientes})
+
+        # 2) auto-distribuir el restante:
+        #    - primero dentro de las seleccionadas (más antiguas)
+        #    - si no hubo seleccionadas, pasa directo al paso 3
+        for t in selected_txs:
+            if restante <= 0:
+                break
+            saldo = Decimal(str(t.saldo_actual)) - aplicado_por_tx[t.id]
+            if saldo <= 0:
+                continue
+            add = min(restante, saldo)
+            aplicado_por_tx[t.id] += add
+            restante -= add
+
+        # 3) si aún sobra, aplicar a otras transacciones pendientes (no seleccionadas), por antigüedad
+        if restante > 0:
+            others = [t for t in pendientes if t.id not in aplicado_por_tx]
+            for t in others:
+                if restante <= 0:
+                    break
+                saldo = Decimal(str(t.saldo_actual))
+                if saldo <= 0:
+                    continue
+                add = min(restante, saldo)
+                aplicado_por_tx[t.id] = add
+                restante -= add
+
+        # 4) Crear abonos por tx
+        tx_afectadas = []
+        creado_total = Decimal("0")
+        for tx_id, val in aplicado_por_tx.items():
+            if val <= 0:
+                continue
+            tx = Transaccion.objects.get(pk=tx_id)
+            Abono.objects.create(
+                transaccion=tx,
+                valor=val,
+                metodo=metodo,
+                descripcion_cruce=descripcion_cruce if metodo == Abono.CRUCE else "",
+                fecha=fecha_obj,
+                hora=hora_obj,
+                notas=notas,
+            )
+            creado_total += val
+            tx_afectadas.append(tx)
+
+        # 5) actualizar tx a pagadas si quedaron en 0
+        for tx in tx_afectadas:
+            tx.refresh_from_db()
+            if (not tx.pagado) and float(getattr(tx, "saldo_actual", 0.0)) <= 0.0:
+                tx.pagado = True
+                tx.fecha_pago = fecha_obj
+                tx.pagado_en = timezone.now()
+                tx.save(update_fields=["pagado", "pagado_en", "fecha_pago"])
+
+        if restante > 0:
+            messages.info(request, f"Se registró el pago, pero sobró {restante:.0f}. (No se aplicó).")
+        messages.success(request, f"Pago registrado: {creado_total:.0f}")
+        return redirect("cartera:clientes_detail", pk=cliente.id)
+
+    return render(request, "cartera/pago_lote.html", {"cliente": cliente, "pendientes": pendientes})
 
 
 # ========= DASHBOARD =========
@@ -983,5 +1202,4 @@ class TransaccionDeleteView(LoginRequiredMixin, DeleteView):
     def get_success_url(self):
         # redirigir al detalle del cliente después del delete
         return reverse_lazy("cartera:clientes_detail", args=[self._cliente_id])
-
 

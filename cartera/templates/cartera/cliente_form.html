@@ -14,6 +14,22 @@
       {{ form.activo }} <span>Activo</span>
     </label>
 
+    {% if form.errors %}
+      <div class="alert alert-danger" role="alert" style="margin-bottom:12px;">
+        <strong>No se pudo guardar.</strong>
+        {% if form.non_field_errors %}
+          <div>{{ form.non_field_errors }}</div>
+        {% endif %}
+        <ul style="margin:8px 0 0 18px;">
+          {% for field in form %}
+            {% for error in field.errors %}
+              <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+            {% endfor %}
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     <div class="row">
       <button class="btn" type="submit">Guardar</button>
       <a class="btn alt" href="{% url 'cartera:clientes_list' %}">Cancelar</a>

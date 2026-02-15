@@ -11,6 +11,7 @@
     <p style="margin:0 0 12px;">Saldo pendiente total: <strong>{{ total_pendiente|cop }}</strong></p>
     <div class="row" style="gap:8px;flex-wrap:wrap;">
       <a class="btn cobre" href="{% url 'cartera:tx_create' %}?cliente={{ obj.id }}">➕ Transacción</a>
+      <a class="btn cobre outline" href="{% url 'cartera:pago_lote' obj.id %}">💳 Registrar pago</a>
       <a class="btn alt" href="{% url 'cartera:clientes_update' obj.id %}">Editar</a>
       <a href="{% url 'cartera:estado_cuenta' obj.id %}" class="btn cobre outline" style="width:100%;text-align:center;">
         📄 Generar estado de cuenta
@@ -95,9 +96,11 @@
     {% for t in tx_list %}
     <article class="tx-card touch-card">
       <!-- Encabezado -->
-      <div class="row">
-        <div class="title">{{ t.get_tipo_display }}{% if t.campania %} · <span class="sub">Campaña {{ t.campania }}</span>{% endif %}</div>
-        <div class="right sub">{{ t.fecha|date:"Y-m-d" }}</div>
+      <div class="tx-head">
+        <div class="tx-title">
+          {{ t.get_tipo_display }}{% if t.campania %} · <span class="sub">Campaña {{ t.campania }}</span>{% endif %}
+        </div>
+        <div class="tx-date sub">{{ t.fecha|date:"Y-m-d" }}</div>
       </div>
 
       <!-- Chips de productos -->
@@ -120,6 +123,7 @@
       <div class="row" style="margin-top:8px;">
         {% if t.pagado %}
           <span class="pill-ok">Pagado</span>
+          {% if t.fecha_pago %}<span class="sub" style="margin-left:8px;">({{ t.fecha_pago|date:"Y-m-d" }})</span>{% endif %}
         {% else %}
           <span class="pill-warn">Pendiente</span>
         {% endif %}
@@ -181,6 +185,70 @@
   color:#1e1a16;
 }
 .cta-row.two{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+
+/* ===== FIX móvil: evitar “cortes” y desbordes ===== */
+.show-on-mobile .card-list { display:flex; flex-direction:column; gap:12px; }
+
+/* header de cada card */
+.tx-head{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+}
+.tx-title{
+  font-weight:800;
+  font-size:20px;
+  line-height:1.1;
+  min-width:0;           /* clave para que permita wrap */
+  flex:1 1 auto;
+  word-break:break-word; /* rompe palabras largas */
+}
+.tx-date{
+  flex:0 0 auto;
+  white-space:nowrap;
+  font-size:13px;
+}
+
+/* chips: que siempre bajen y no empujen el ancho */
+.chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.chip{
+  max-width:100%;
+  white-space:normal;
+  word-break:break-word;
+  line-height:1.15;
+}
+
+/* métricas: en móvil mejor 2 columnas */
+@media (max-width: 420px){
+  .tx-card .metrics{
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* CTA: botones siempre del mismo alto y sin deformarse */
+.cta-row.two{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:12px;
+}
+.cta-row.two .btn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:12px 12px;
+  border-radius:14px;
+  min-height:44px;
+}
+
+/* “Ver / Editar” no se deben encoger */
+.cta-row.two .btn{ flex:0 0 auto; }
+
+/* por si algún contenedor genera scroll horizontal */
+.show-on-mobile, .tx-card { overflow:hidden; }
+
+
 </style>
 
 <script>

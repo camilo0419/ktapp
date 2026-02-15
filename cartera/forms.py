@@ -18,6 +18,19 @@ class ClienteForm(forms.ModelForm):
         }
 
 
+
+    def clean_telefono(self):
+        tel = (self.cleaned_data.get("telefono") or "").strip()
+        if not tel:
+            return tel
+        qs = Cliente.objects.filter(telefono=tel)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("Ya existe un cliente con ese número de celular.")
+        return tel
+
+
 class TransaccionForm(forms.ModelForm):
     # Asegura el formato del <input type="date">
     fecha = forms.DateField(
@@ -30,7 +43,7 @@ class TransaccionForm(forms.ModelForm):
         model = Transaccion
         fields = ["cliente", "tipo", "campania", "fecha", "hora", "pagado"]
         widgets = {
-            "cliente": forms.Select(attrs={"class": "input"}),
+            "cliente": forms.Select(attrs={"class": "input js-select2"}),
             "tipo": forms.Select(attrs={"class": "input", "id": "id_tipo"}),
             "campania": forms.TextInput(attrs={"class": "input", "placeholder": "# Campaña", "id": "id_campania"}),
             "hora": forms.HiddenInput(),
@@ -40,6 +53,7 @@ class TransaccionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["hora"].required = False
+        self.fields["cliente"].queryset = Cliente.objects.order_by('nombre')
 
         # Crear: precargar hoy
         if not self.is_bound and not self.instance.pk and not self.initial.get("fecha"):
@@ -57,6 +71,11 @@ class TransaccionForm(forms.ModelForm):
 
 
 class TransaccionItemForm(forms.ModelForm):
+    codigo_producto = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={"class": "input", "placeholder": "Código"}),
+        label="Código",
+    )
     # Campos no requeridos por defecto: validamos en el formset
     producto = forms.CharField(
         required=False,
@@ -83,7 +102,7 @@ class TransaccionItemForm(forms.ModelForm):
 
     class Meta:
         model = TransaccionItem
-        fields = ["producto", "precio_unitario", "cantidad", "descuento"]
+        fields = ["codigo_producto", "producto", "precio_unitario", "cantidad", "descuento"]
 
     def clean_descuento(self):
         v = self.cleaned_data.get("descuento")
@@ -180,10 +199,11 @@ class AbonoForm(forms.ModelForm):
 
     class Meta:
         model = Abono
-        fields = ["valor", "metodo", "fecha", "hora", "notas"]
+        fields = ["valor", "metodo", "descripcion_cruce", "fecha", "hora", "notas"]
         widgets = {
             "valor": forms.NumberInput(attrs={"class": "input", "step": "0.01", "min": "0"}),
-            "metodo": forms.Select(attrs={"class": "input"}),
+            "metodo": forms.Select(attrs={"class": "input", "id": "id_metodo"}),
+            "descripcion_cruce": forms.TextInput(attrs={"class": "input", "placeholder": "Descripción del cruce", "id": "id_descripcion_cruce"}),
             "notas": forms.TextInput(attrs={"class": "input", "placeholder": "Notas"}),
         }
 

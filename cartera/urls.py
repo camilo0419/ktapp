@@ -13,6 +13,7 @@ urlpatterns = [
     path("clientes/nuevo/", views.ClienteCreateView.as_view(), name="clientes_create"),
     path("clientes/<int:pk>/", views.ClienteDetailView.as_view(), name="clientes_detail"),
     path("clientes/<int:pk>/editar/", views.ClienteUpdateView.as_view(), name="clientes_update"),
+    path("clientes/<int:pk>/pago-lote/", views.pago_lote, name="pago_lote"),
 
     # TRANSACCIONES
     path("tx/nueva/", views.TransaccionCreateView.as_view(), name="tx_create"),
@@ -22,6 +23,7 @@ urlpatterns = [
     path("tx/<int:pk>/pagada/", views.transaccion_marcar_pagado, name="tx_pagada"),
 
     # ABONOS
+    path("abonos/", views.AbonoListView.as_view(), name="abonos_list"),
     path("tx/<int:tx_id>/abono/nuevo/", views.AbonoCreateView.as_view(), name="abono_create"),
     path("abono/<int:pk>/editar/", views.AbonoUpdateView.as_view(), name="abono_update"),
     path("abono/<int:pk>/eliminar/", views.abono_delete, name="abono_delete"),

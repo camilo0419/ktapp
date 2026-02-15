@@ -5,7 +5,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}KtApp{% endblock %}</title>
-
   <meta name="theme-color" content="#CC845E" />
 
   <!-- Favicons -->
@@ -15,213 +14,95 @@
   <link rel="apple-touch-icon" sizes="180x180" href="{% static 'ktapp/icons/apple-touch-icon.png' %}">
   <link rel="manifest" href="{% static 'ktapp/site.webmanifest' %}">
 
-  <!-- Tipografía & CSS -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'ktapp/css/ktapp.css' %}">
+
+  <!-- Select2 (buscador en selects) -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 </head>
 
 <body class="app">
 
-  <!-- HEADER -->
-  <header class="app-header">
-    <div class="brand">
-      <span class="logo-dot"></span>
-      <strong>KtApp</strong>
-    </div>
+  <div class="app-shell">
+    <!-- Sidebar (solo desktop) -->
+    <aside class="sidebar hide-on-mobile">
+      <div class="sidebar-brand">
+        <span class="logo-dot"></span>
+        <strong>KtApp</strong>
+      </div>
 
-    <div class="header-right">
-      <nav class="nav">
-        <a href="{% url 'cartera:dashboard' %}"
-           class="nav-link {% if request.path == '/' or request.path == '/dashboard/' %}is-active{% endif %}">
-          Inicio
+      <nav class="sidebar-nav">
+        <a href="{% url 'cartera:dashboard' %}" class="side-link {% if request.path == '/' or '/dashboard/' in request.path %}is-active{% endif %}">
+          <span class="ico">🏠</span> Inicio
         </a>
-        <a href="{% url 'cartera:clientes_list' %}"
-           class="nav-link {% if '/clientes/' in request.path %}is-active{% endif %}">
-          Clientes
+        <a href="{% url 'cartera:clientes_list' %}" class="side-link {% if '/clientes/' in request.path %}is-active{% endif %}">
+          <span class="ico">👥</span> Clientes
+        </a>
+        <a href="{% url 'cartera:tx_create' %}" class="side-link {% if '/tx/' in request.path %}is-active{% endif %}">
+          <span class="ico">💳</span> Transacciones
+        </a>
+        <a href="{% url 'cartera:abonos_list' %}" class="side-link {% if '/abonos/' in request.path %}is-active{% endif %}">
+          <span class="ico">💰</span> Abonos
         </a>
       </nav>
 
-      <!-- CTA MENOS PROTAGONISTA -->
-      <a href="{% url 'cartera:tx_create' %}" class="btn header-cta sm">➕ Transacción</a>
+
+    </aside>
+
+    <!-- Content -->
+    <div class="app-content">
+      <!-- Header (se mantiene, pero en móvil queda liviano) -->
+      <header class="app-header">
+        <div class="brand">
+          <span class="logo-dot"></span>
+          <strong>KtApp</strong>
+        </div>
+      </header>
+
+      <main class="app-main">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="app-footer">
+        <small>© {{ now|date:"Y" }} KtApp · Todos los derechos reservados</small>
+      </footer>
     </div>
-  </header>
+  </div>
 
-  <!-- CONTENIDO -->
-  <main class="app-main">
-    {% block content %}{% endblock %}
-  </main>
+  <!-- Tab bar móvil (estilo TimeApp) -->
+  <nav class="tabbar show-on-mobile" role="navigation" aria-label="Menú inferior">
+    <a href="{% url 'cartera:dashboard' %}" class="tab {% if request.path == '/' or '/dashboard/' in request.path %}is-active{% endif %}">
+      <span class="tab-ico">🏠</span><span class="tab-txt">Inicio</span>
+    </a>
+    <a href="{% url 'cartera:clientes_list' %}" class="tab {% if '/clientes/' in request.path %}is-active{% endif %}">
+      <span class="tab-ico">👥</span><span class="tab-txt">Clientes</span>
+    </a>
+    <a href="{% url 'cartera:tx_create' %}" class="tab {% if '/tx/' in request.path %}is-active{% endif %}">
+      <span class="tab-ico">💳</span><span class="tab-txt">Transac.</span>
+    </a>
+    <a href="{% url 'cartera:abonos_list' %}" class="tab {% if '/abonos/' in request.path %}is-active{% endif %}">
+      <span class="tab-ico">💰</span><span class="tab-txt">Abonos</span>
+    </a>
+  </nav>
 
-  <!-- FOOTER -->
-  <footer class="app-footer">
-    <small>© {{ now|date:"Y" }} KtApp · Todos los derechos reservados</small>
-  </footer>
-
-  <!-- ======== ESTILOS ======== -->
-  <style>
-    body.app {
-      font-family: 'Inter', sans-serif;
-      background: #faf6f3;
-      margin: 0;
-      color: #222;
-    }
-
-    .app-main { padding: 16px; }
-
-    /* Header */
-    .app-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 20px;
-      background: linear-gradient(to bottom, #F6F1EC, #EFE8E1);
-      border-bottom: 1px solid rgba(195,164,139,.3);
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 700;
-      font-size: 1.2rem;
-      color: #1f1f1f;
-    }
-
-    .logo-dot {
-      width: 10px;
-      height: 10px;
-      background: #CC845E;
-      border-radius: 50%;
-      display: inline-block;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      margin-left: auto;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .nav {
-      display: flex;
-      gap: 18px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .nav-link {
-      text-decoration: none;
-      color: #3d3d3d;
-      font-weight: 600;
-      padding: 6px 10px;
-      border-radius: 6px;
-      transition: all .2s;
-    }
-    .nav-link:hover { background: rgba(204,132,94,0.12); }
-    .nav-link.is-active { background: #CC845E; color: #fff; }
-
-    /* Botones base */
-    .btn {
-      display: inline-block;
-      padding: 7px 14px;
-      border-radius: 8px;
-      font-weight: 600;
-      text-decoration: none;
-      border: none;
-      cursor: pointer;
-      transition: all .2s;
-    }
-    .btn.cobre { background: #CC845E; color: #fff; }
-    .btn.cobre:hover { background: #b46f4d; }
-
-    .btn.alt { background: #e8e2dc; color: #3b2e25; }
-    .btn.sm { font-size: 14px; line-height: 1.1; }
-
-    /* CTA de header con MENOS protagonismo (outline suave) */
-    .header-cta{
-      background: #f2ece6;
-      color: #5a4a3d;
-      border: 1px solid rgba(113,92,71,.35);
-    }
-    .header-cta:hover{
-      background:#eadfd4;
-      color:#3b2e25;
-    }
-
-    /* Footer */
-    .app-footer {
-      text-align: center;
-      padding: 12px 0;
-      color: #715C47;
-      font-size: 14px;
-      background: #f8f4f0;
-      border-top: 1px solid #eadfd4;
-      margin-top: 20px;
-    }
-
-    /* === Cards táctiles & responsive helpers === */
-    .hide-on-mobile{ display:block; }
-    .show-on-mobile{ display:none; }
-
-    @media (max-width: 860px){
-      .hide-on-mobile{ display:none !important; }
-      .show-on-mobile{ display:block !important; }
-      .app-main { padding: 12px; }
-      .app-header { justify-content: center; }
-      .header-right { justify-content: center; gap:12px; }
-      /* CTA aún más discreta en pantallas pequeñas */
-      .header-cta{ padding:6px 10px; font-weight:600; }
-    }
-
-    .card-list{ display:grid; gap:12px; }
-    .touch-card{
-      background:#fff; border:1px solid #eee; border-radius:16px;
-      padding:14px; box-shadow:0 2px 10px rgba(0,0,0,.05);
-      transition: all .15s ease-in-out;
-    }
-    .touch-card:hover{ transform:translateY(-2px); }
-    .touch-card .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .touch-card .title{ font-weight:800; font-size:1.05rem; color:#222; }
-    .touch-card .sub{ color:#666; font-size:.92rem; }
-    .touch-card .k{ color:#444; font-weight:700; }
-    .touch-card .v{ color:#111; font-weight:800; }
-    .touch-card .right{ margin-left:auto; text-align:right; }
-    .touch-card .chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-    .chip{
-      display:inline-flex; align-items:center; gap:6px;
-      border-radius:999px; padding:6px 10px;
-      background:#f3ede7; color:#4b3b2e; font-weight:700; font-size:.82rem;
-    }
-    .pill-ok{ background:#2e7d32; color:#fff; font-weight:800; border-radius:999px; padding:4px 10px; }
-    .pill-warn{ background:#b3261e; color:#fff; font-weight:800; border-radius:999px; padding:4px 10px; }
-    .cta-row{ display:flex; gap:8px; margin-top:10px; }
-    .cta-row .btn{ flex:1; text-align:center; }
-    .touchable{ position:relative; cursor:pointer; }
-    .touchable:active{ transform:scale(.997); }
-
-    .btn.cobre.outline {
-      background: transparent;
-      color: #CC845E;
-      border: 2px solid #CC845E;
-    }
-    .btn.cobre.outline:hover {
-      background: #CC845E;
-      color: #fff;
-    }
-
-
-  </style>
-
-  <!-- ======== SCRIPTS ======== -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script>
-    // Click completo en card táctil
-    document.addEventListener('click', e => {
-      const card = e.target.closest('[data-href]');
-      if(card){ window.location.href = card.dataset.href; }
+    // Touch cards: si tienen data-href, navegar al tocar
+    document.querySelectorAll('[data-href]').forEach(el=>{
+      el.addEventListener('click', (e)=>{
+        const a = e.target.closest('a');
+        if(a) return; // deja que los botones funcionen
+        window.location.href = el.getAttribute('data-href');
+      });
+    });
+
+    // Select2: buscador en selects marcados
+    document.addEventListener('DOMContentLoaded', ()=>{
+      if(window.jQuery && jQuery.fn.select2){
+        jQuery('.js-select2').select2({ width: '100%' });
+      }
     });
   </script>
 

@@ -1,0 +1,27 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}KtApp{% endblock %}</title>
+  <meta name="theme-color" content="#CC845E" />
+
+  <link rel="icon" type="image/png" sizes="96x96" href="{% static 'ktapp/icons/favicon-96x96.png' %}">
+  <link rel="icon" type="image/svg+xml" href="{% static 'ktapp/icons/favicon.svg' %}">
+  <link rel="shortcut icon" href="{% static 'ktapp/icons/favicon.ico' %}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{% static 'ktapp/icons/apple-touch-icon.png' %}">
+  <link rel="manifest" href="{% static 'ktapp/site.webmanifest' %}">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'ktapp/css/ktapp.css' %}">
+</head>
+
+<body class="app">
+  <!-- Base sin menús (login / auth). Evita sidebar + tabbar atravesados. -->
+  <main class="app-main" style="padding:0;">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

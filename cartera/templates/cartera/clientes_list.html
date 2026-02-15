@@ -1,11 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Clientes{% endblock %}
+{% block title %}Clientes - KtApp{% endblock %}
+
 {% block content %}
+
+<div class="card" style="margin-top:12px;">
+  <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div><small>Mostrando {{ page_obj.start_index }} a {{ page_obj.end_index }} de {{ paginator.count }} clientes</small></div>
+    <div class="row" style="gap:8px;">
+      {% if page_obj.has_previous %}
+        <a class="btn alt" href="?q={{ request.GET.q|urlencode }}&inactivos={{ request.GET.inactivos }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+      {% endif %}
+      <span class="chip">Página {{ page_obj.number }} de {{ paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a class="btn alt" href="?q={{ request.GET.q|urlencode }}&inactivos={{ request.GET.inactivos }}&page={{ page_obj.next_page_number }}">Siguiente</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
 
 <div class="card">
   <form method="get" class="row">
-    <input class="input" type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar...">
+    <input class="input" type="search" name="q" value="{{ request.GET.q }}" placeholder="Nombre, correo o celular">
     <button class="btn" type="submit">Buscar</button>
+    <label style="display:flex;align-items:center;gap:8px;margin-left:8px;">
+      <input type="checkbox" name="inactivos" value="1" {% if request.GET.inactivos %}checked{% endif %}>
+      Incluir inactivos
+    </label>
     <a class="btn alt" href="{% url 'cartera:clientes_create' %}">➕ Nuevo cliente</a>
   </form>
 </div>
@@ -17,7 +37,8 @@
       <tr>
         <th>Cliente</th>
         <th>Contacto</th>
-        <th></th>
+        <th>Estado</th>
+        <th>Acciones</th>
       </tr>
     </thead>
     <tbody>
@@ -29,7 +50,11 @@
           </a>
         </td>
         <td><small>{{ c.telefono }}{% if c.correo %} · {{ c.correo }}{% endif %}</small></td>
+        <td>
+          {% if c.activo %}<span class="badge ok">Activo</span>{% else %}<span class="badge off">Inactivo</span>{% endif %}
+        </td>
         <td class="right">
+          <a class="btn alt" href="{% url 'cartera:clientes_detail' c.id %}">Ver</a>
           <a class="btn alt" href="{% url 'cartera:clientes_update' c.id %}">Editar</a>
         </td>
       </tr>
@@ -52,6 +77,10 @@
       <div class="row sub" style="margin-top:6px;">
         <span class="k">Tel:</span>&nbsp;<span class="v">{{ c.telefono|default:"—" }}</span>
       </div>
+      <div class="row sub">
+        <span class="k">Estado:</span>&nbsp;
+        {% if c.activo %}<span class="badge ok">Activo</span>{% else %}<span class="badge off">Inactivo</span>{% endif %}
+      </div>
       {% if c.correo %}
       <div class="row sub">
         <span class="k">Correo:</span>&nbsp;<span class="v">{{ c.correo }}</span>
@@ -68,4 +97,20 @@
   </div>
 </div>
 
+
+<div class="card" style="margin-top:12px;">
+  <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div><small>Mostrando {{ page_obj.start_index }} a {{ page_obj.end_index }} de {{ paginator.count }} clientes</small></div>
+    <div class="row" style="gap:8px;">
+      {% if page_obj.has_previous %}
+        <a class="btn alt" href="?q={{ request.GET.q|urlencode }}&inactivos={{ request.GET.inactivos }}&page={{ page_obj.previous_page_number }}">Anterior</a>
+      {% endif %}
+      <span class="chip">Página {{ page_obj.number }} de {{ paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a class="btn alt" href="?q={{ request.GET.q|urlencode }}&inactivos={{ request.GET.inactivos }}&page={{ page_obj.next_page_number }}">Siguiente</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
 {% endblock %}
+

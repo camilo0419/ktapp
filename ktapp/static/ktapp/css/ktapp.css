@@ -104,3 +104,295 @@ a:hover{text-decoration:underline}
   background:#fff; border-color:rgba(204,132,94,.35); color:#AB4226;
   box-shadow:0 1px 0 rgba(0,0,0,.04);
 }
+
+
+
+/* ====== Helpers responsive ====== */
+.hide-on-mobile{display:block}
+.show-on-mobile{display:none}
+@media (max-width: 768px){
+  .hide-on-mobile{display:none !important;}
+  .show-on-mobile{display:block !important;}
+  .app-main{padding-bottom:86px;}
+}
+
+/* ====== Sidebar desktop ====== */
+.app-shell{display:flex; width:100%;}
+.sidebar{
+  width:220px; flex:0 0 220px;
+  min-height:100dvh;
+  position:sticky; top:0;
+  background:linear-gradient(180deg, var(--hueso), rgba(220,208,194,.55));
+  border-right:1px solid rgba(0,0,0,.06);
+  padding:14px 12px;
+}
+.sidebar-brand{display:flex;align-items:center;gap:10px;font-size:18px;margin-bottom:14px;}
+.sidebar-nav{display:flex;flex-direction:column;gap:8px;}
+.side-link{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px;
+  border-radius:14px;
+  text-decoration:none;
+  color:var(--text);
+  font-weight:700;
+  background:rgba(255,255,255,.55);
+  border:1px solid rgba(0,0,0,.05);
+}
+.side-link .ico{width:22px;text-align:center;opacity:.9;}
+.side-link:hover{background:rgba(255,255,255,.75);}
+.side-link.is-active{background:rgba(204,132,94,.18); border-color:rgba(204,132,94,.35);}
+.sidebar-cta{margin-top:14px;}
+
+/* content to the right */
+.app-content{flex:1; min-width:0;}
+
+/* ====== Mobile tabbar (TimeApp vibe) ====== */
+.tabbar{
+  position:fixed; left:0; right:0; bottom:0;
+  display:none; justify-content:space-around; gap:6px;
+  padding:10px 10px 12px;
+  background:rgba(220,208,194,.92);
+  backdrop-filter: blur(10px);
+  border-top:1px solid rgba(0,0,0,.08);
+  z-index:50;
+}
+.tab{
+  flex:1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:4px;
+  text-decoration:none;
+  color:var(--cafe);
+  font-weight:800;
+  padding:8px 6px;
+  border-radius:14px;
+}
+.tab-ico{font-size:20px; line-height:1;}
+.tab-txt{font-size:12px; line-height:1;}
+.tab.is-active{background:rgba(255,255,255,.65); color:var(--oxido);}
+
+/* ====== Badges ====== */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 10px;
+  border-radius:999px;
+  font-weight:800;
+  font-size:12px;
+}
+.badge.ok{background:#2e7d32;color:#fff;}
+.badge.off{background:#9e9e9e;color:#fff;}
+
+/* ====== Pago lote list ====== */
+.tx-lote-list{display:flex; flex-direction:column; gap:10px;}
+.tx-lote-row{
+  display:flex; gap:12px; justify-content:space-between; align-items:flex-start;
+  padding:10px; border-radius:14px; background:rgba(255,255,255,.7);
+  border:1px solid rgba(0,0,0,.05);
+}
+.tx-check{display:flex; gap:10px; align-items:flex-start; flex:1;}
+.tx-check input{margin-top:4px; transform:scale(1.2);}
+.tx-monto{width:220px;}
+.muted{color:var(--muted);}
+@media (max-width: 768px){
+  .tx-lote-row{flex-direction:column;}
+  .tx-monto{width:100%;}
+}
+
+/* Select2 small theme tweak (keep colors) */
+.select2-container--default .select2-selection--single{
+  height:42px; border-radius:12px; border:1px solid rgba(0,0,0,.12);
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered{
+  line-height:42px; padding-left:12px;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow{
+  height:42px;
+}
+
+@media (min-width: 769px){
+  .tabbar{display:none !important;}
+}
+
+/* =========================================================
+   TAB BAR MÓVIL (TimeApp style) — FIX HORIZONTAL
+   ========================================================= */
+
+/* Solo móvil: muestra tabbar y oculta sidebar */
+.show-on-mobile { display: none; }
+.hide-on-mobile { display: block; }
+
+@media (max-width: 768px) {
+  .show-on-mobile { display: block !important; }
+  .hide-on-mobile { display: none !important; }
+}
+
+/* Tabbar fijo abajo, horizontal */
+.tabbar{
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 9999;
+
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-around;
+
+  gap: 6px;
+  padding: 10px 8px;
+
+  border-radius: 18px;
+  background: rgba(220, 205, 190, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px rgba(0,0,0,.12);
+}
+
+/* iPhone safe-area */
+@supports (padding: max(0px)) {
+  .tabbar { bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+
+/* Cada botón: icon arriba, texto abajo */
+.tabbar .tab{
+  flex: 1 1 0;
+  min-width: 0;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center;
+  justify-content: center;
+
+  text-decoration: none;
+  color: inherit;
+
+  padding: 8px 6px;
+  border-radius: 14px;
+}
+
+/* Activo */
+.tabbar .tab.is-active{
+  background: rgba(255,255,255,0.65);
+}
+
+/* Tamaños */
+.tabbar .tab-ico{
+  font-size: 20px;
+  line-height: 1;
+}
+.tabbar .tab-txt{
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Para que el contenido no quede tapado por la barra */
+@media (max-width: 768px){
+  body.app { padding-bottom: 96px; }
+}
+
+/* En desktop NUNCA se muestra la barra */
+@media (min-width: 769px){
+  .tabbar { display: none !important; }
+  body.app { padding-bottom: 0; }
+}
+
+
+/* ===== Fix móvil: Nueva transacción ===== */
+@media (max-width: 768px){
+
+  /* que el contenido no quede debajo del tabbar */
+  .app-main{
+    padding-bottom: 120px !important;
+  }
+
+  /* cualquier tabla grande -> scroll horizontal */
+  .table-responsive,
+  .tx-items-wrap,
+  .items-table-wrap{
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* si tus ítems están en <table>, fuerza un ancho mínimo */
+  table{
+    width: 100%;
+  }
+  .items-table,
+  table.items,
+  table.tx-items{
+    min-width: 720px; /* para que no se aplaste en móvil */
+  }
+
+  /* inputs dentro de celdas: no se encojan a nada */
+  table input, table select{
+    min-width: 120px;
+  }
+
+  /* botones (ej +producto / guardar) que no se corten */
+  .btn, button{
+    max-width: 100%;
+    white-space: nowrap;
+  }
+}
+
+/* =========================================================
+   Cards móvil (Clientes / Transacciones / Abonos)
+   Evita que “se mezclen” visualmente
+   ========================================================= */
+.card-list{display:flex;flex-direction:column;gap:12px;}
+
+.touch-card{
+  background:#fff;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:18px;
+  padding:14px;
+  box-shadow:0 8px 18px rgba(0,0,0,.06);
+}
+.touch-card.touchable{cursor:pointer;}
+
+.touch-card .title{font-weight:800;font-size:16px;line-height:1.2;}
+.touch-card .sub{color:var(--muted);font-size:12px;line-height:1.2;}
+.touch-card .k{color:var(--muted);font-weight:700;}
+.touch-card .v{color:var(--text);}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;color:var(--cafe);background:rgba(195,164,139,.18);border:1px solid rgba(195,164,139,.32);}
+
+.cta-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.cta-row .btn{flex:1;justify-content:center;}
+
+.pill-ok,.pill-warn{
+  display:inline-flex;align-items:center;
+  padding:4px 10px;border-radius:999px;
+  font-weight:800;font-size:12px;
+}
+.pill-ok{background:#2e7d32;color:#fff;}
+.pill-warn{background:#AB4226;color:#fff;}
+
+/* ===== Nueva transacción: items en "tarjeta" en móvil ===== */
+@media (max-width: 768px){
+  .item-row{
+    grid-template-columns: 1fr 1fr !important;
+    gap:10px !important;
+    padding:12px !important;
+    border:1px solid rgba(0,0,0,.08);
+    border-radius:18px;
+    background:#fff;
+    box-shadow:0 8px 18px rgba(0,0,0,.06);
+  }
+  .item-row .item-field{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin:0 !important;
+  }
+  /* Producto ocupa 2 columnas para que pueda ir a 2 renglones */
+  .item-row .item-product{
+    grid-column: 1 / -1;
+  }
+  /* Errores debajo sin romper el grid */
+  .item-row .error{grid-column: 1 / -1;}
+}

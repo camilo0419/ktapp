@@ -84,6 +84,43 @@
   <section class="card">
     <h3 style="margin-top:0;">Abonos</h3>
 
+    {# ✅ NUEVO: si está pagada pero no hay abonos, mostrar info del pago directo #}
+    {% if tx.pagado and not abonos %}
+      <div class="touch-card" style="background:rgba(220,208,194,.18);border:1px solid rgba(195,164,139,.35);">
+        <div class="row">
+          <div class="title">Pago registrado</div>
+          <div class="right sub">
+            {% if tx.fecha_pago %}{{ tx.fecha_pago|date:"Y-m-d" }}{% endif %}
+            {% if tx.hora_pago %} · {{ tx.hora_pago|time:"H:i" }}{% endif %}
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+          <span class="k">Método:</span>&nbsp;
+          <span class="v">
+            {# intenta mostrar display si existe, si no muestra el código #}
+            {% if tx.get_metodo_display %}{{ tx.get_metodo_display }}
+            {% elif tx.metodo %}{{ tx.metodo }}
+            {% else %}—{% endif %}
+          </span>
+        </div>
+
+        {% if tx.descripcion_cruce %}
+          <div class="sub" style="margin-top:6px;"><strong>Cruce:</strong> {{ tx.descripcion_cruce }}</div>
+        {% endif %}
+
+        {% if tx.notas_pago %}
+          <div class="sub" style="margin-top:6px;">{{ tx.notas_pago }}</div>
+        {% elif tx.notas %}
+          <div class="sub" style="margin-top:6px;">{{ tx.notas }}</div>
+        {% endif %}
+
+        <div class="row" style="margin-top:8px;">
+          <span class="k">Valor:</span>&nbsp;<span class="v">{{ tx.valor_a_pagar|cop }}</span>
+        </div>
+      </div>
+    {% endif %}
+
     <!-- Desktop: tabla -->
     <div class="hide-on-mobile">
       <table>

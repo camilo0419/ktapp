@@ -1,5 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Registrar abono{% endblock %}
+{% block title %}Registrar abono<script>
+(function(){
+  const metodo = document.getElementById('id_metodo');
+  const wrap = document.getElementById('cruce-wrap');
+  function sync(){
+    if(!metodo || !wrap) return;
+    wrap.style.display = (metodo.value === 'CRU') ? 'block' : 'none';
+  }
+  if(metodo){ metodo.addEventListener('change', sync); }
+  sync();
+})();
+</script>
+{% endblock %}
 {% block content %}
 <div class="card grid" style="max-width:560px;margin:0 auto;">
   <h2 style="margin:0 0 6px;">Registrar abono</h2>
@@ -12,6 +24,11 @@
 
     <label>Método {{ form.metodo }}</label>
     {% if form.errors.metodo %}<small class="error">{{ form.errors.metodo.0 }}</small>{% endif %}
+
+    <div id="cruce-wrap">
+      <label>Descripción del cruce {{ form.descripcion_cruce }}</label>
+      {% if form.errors.descripcion_cruce %}<small class="error">{{ form.errors.descripcion_cruce.0 }}</small>{% endif %}
+    </div>
 
     <div class="row">
       <label>Fecha {{ form.fecha }}</label>
@@ -29,6 +46,18 @@
     </div>
   </form>
 </div>
+<script>
+(function(){
+  const metodo = document.getElementById('id_metodo');
+  const wrap = document.getElementById('cruce-wrap');
+  function sync(){
+    if(!metodo || !wrap) return;
+    wrap.style.display = (metodo.value === 'CRU') ? 'block' : 'none';
+  }
+  if(metodo){ metodo.addEventListener('change', sync); }
+  sync();
+})();
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -51,6 +80,18 @@
       }
     });
   }
+})();
+</script>
+<script>
+(function(){
+  const metodo = document.getElementById('id_metodo');
+  const wrap = document.getElementById('cruce-wrap');
+  function sync(){
+    if(!metodo || !wrap) return;
+    wrap.style.display = (metodo.value === 'CRU') ? 'block' : 'none';
+  }
+  if(metodo){ metodo.addEventListener('change', sync); }
+  sync();
 })();
 </script>
 {% endblock %}

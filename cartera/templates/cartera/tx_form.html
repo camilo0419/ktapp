@@ -44,17 +44,20 @@
 
     <div id="items-container" style="display:grid;gap:8px;">
       {% for f in formset.forms %}
-        <div class="item-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
-          <label>Producto {{ f.producto }}</label>
+        <div class="item-row" style="display:grid;grid-template-columns:1fr 2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;">
+          <label class="item-field item-code">Código {{ f.codigo_producto }}</label>
+          {% if f.errors.codigo_producto %}<small class="error">{{ f.errors.codigo_producto.0 }}</small>{% endif %}
+
+          <label class="item-field item-product">Producto {{ f.producto }}</label>
           {% if f.errors.producto %}<small class="error">{{ f.errors.producto.0 }}</small>{% endif %}
 
-          <label>Precio U. {{ f.precio_unitario }}</label>
+          <label class="item-field item-price">Precio U. {{ f.precio_unitario }}</label>
           {% if f.errors.precio_unitario %}<small class="error">{{ f.errors.precio_unitario.0 }}</small>{% endif %}
 
-          <label>Cantidad {{ f.cantidad }}</label>
+          <label class="item-field item-qty">Cantidad {{ f.cantidad }}</label>
           {% if f.errors.cantidad %}<small class="error">{{ f.errors.cantidad.0 }}</small>{% endif %}
 
-          <label>Descuento % {{ f.descuento }}</label>
+          <label class="item-field item-disc">Descuento % {{ f.descuento }}</label>
           {% if f.errors.descuento %}<small class="error">{{ f.errors.descuento.0 }}</small>{% endif %}
 
           <div style="align-self:center;">
@@ -89,6 +92,42 @@
       </div>
     </div>
 
+    <!-- ✅ Medio de pago (solo si Pagado) -->
+    <div id="pago-wrap" class="card" style="display:none;margin-top:10px;background:rgba(220,208,194,.18);box-shadow:none;">
+      <h3 style="margin:0 0 10px;">Medio de pago</h3>
+
+      <div class="grid cols-2" style="gap:12px;">
+        <label>Forma de pago
+          <select class="input" name="metodo" id="id_metodo">
+            <option value="NEQ">Nequi</option>
+            <option value="BAN" selected>Bancolombia</option>
+            <option value="EFE">Efectivo</option>
+            <option value="CRU">Cruce de cuentas</option>
+          </select>
+        </label>
+
+        <label>Fecha de pago
+          <input class="input" type="date" name="fecha_pago" id="id_fecha_pago" value="">
+        </label>
+
+        <label>Hora
+          <input class="input" type="time" name="hora_pago" id="id_hora_pago" value="">
+        </label>
+
+        <label>Notas (opcional)
+          <input class="input" type="text" name="notas_pago" id="id_notas_pago" placeholder="Notas del pago">
+        </label>
+      </div>
+
+      <div id="cruce-wrap" style="display:none;margin-top:10px;">
+        <label>Descripción del cruce
+          <input class="input" type="text" name="descripcion_cruce" id="id_descripcion_cruce" placeholder="Ej: Cruce con factura X / cuenta Y">
+        </label>
+      </div>
+
+      <small class="help">* Estos datos solo se usan si marcas la transacción como pagada.</small>
+    </div>
+
     <!-- Botones -->
     <div style="margin-top:16px;">
       <button class="btn primary" type="submit">Guardar</button>
@@ -121,7 +160,6 @@
   function emptyRowTemplate(){
     const first = container.querySelector(".item-row");
     const clone = first.cloneNode(true);
-    // limpiar valores de inputs
     clone.querySelectorAll("input").forEach(inp => {
       if (inp.type === "checkbox") { inp.checked = false; }
       else { inp.value = ""; }
@@ -188,6 +226,46 @@
 
   document.querySelectorAll("#items-container .item-row").forEach(bindRow);
   calcTotals();
+
+  // ✅ Mostrar bloque de pago cuando marcan Pagado + defaults de fecha/hora
+  const pagadoChk = document.getElementById("id_pagado");
+  const pagoWrap = document.getElementById("pago-wrap");
+  const metodo = document.getElementById("id_metodo");
+  const cruce = document.getElementById("cruce-wrap");
+  const fechaPago = document.getElementById("id_fecha_pago");
+  const horaPago = document.getElementById("id_hora_pago");
+
+  function syncCruce(){
+    if(!metodo || !cruce) return;
+    cruce.style.display = (metodo.value === "CRU") ? "block" : "none";
+  }
+
+  function ensureNow(){
+    const d = new Date();
+    if (fechaPago && !fechaPago.value) fechaPago.value = d.toISOString().slice(0,10);
+    if (horaPago && !horaPago.value){
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      horaPago.value = `${hh}:${mm}`;
+    }
+  }
+
+  function togglePagoWrap(){
+    if(!pagadoChk || !pagoWrap) return;
+    pagoWrap.style.display = pagadoChk.checked ? "block" : "none";
+    if(pagadoChk.checked){
+      ensureNow();
+      syncCruce();
+    }
+  }
+
+  if(pagadoChk){
+    pagadoChk.addEventListener("change", togglePagoWrap);
+    togglePagoWrap();
+  }
+  if(metodo){
+    metodo.addEventListener("change", syncCruce);
+  }
 })();
 </script>
 

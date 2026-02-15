@@ -21,6 +21,16 @@ class Cliente(models.Model):
     activo   = models.BooleanField(default=True)
     creado   = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["telefono"],
+                condition=~models.Q(telefono=""),
+                name="uniq_cliente_telefono_no_vacio",
+            ),
+        ]
+
+
     def __str__(self):
         return self.nombre
 
@@ -51,6 +61,7 @@ class Transaccion(models.Model):
 
     pagado    = models.BooleanField(default=False)
     pagado_en = models.DateTimeField(blank=True, null=True)
+    fecha_pago = models.DateField(blank=True, null=True)
 
     creado = models.DateTimeField(auto_now_add=True)
 
@@ -118,6 +129,7 @@ class TransaccionItem(models.Model):
     DESCUENTOS = [(10, "10%"), (20, "20%"), (30, "30%")]
 
     transaccion     = models.ForeignKey(Transaccion, related_name="items", on_delete=models.CASCADE)
+    codigo_producto = models.CharField(max_length=40, blank=True)
     producto        = models.CharField(max_length=200)
     precio_unitario = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)], default=0)
     cantidad        = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)], default=1)
@@ -131,6 +143,14 @@ class TransaccionItem(models.Model):
     def __str__(self):
         return f"{self.producto} x {self.cantidad}"
 
+    def save(self, *args, **kwargs):
+        # Normalizar a 'Solo mayúscula inicial'
+        if self.producto is not None:
+            p = str(self.producto).strip()
+            if p:
+                self.producto = p[:1].upper() + p[1:].lower()
+        super().save(*args, **kwargs)
+
     @property
     def total_linea(self) -> float:
         base = float(self.precio_unitario) * float(self.cantidad)
@@ -139,18 +159,22 @@ class TransaccionItem(models.Model):
 
 
 class Abono(models.Model):
+    NEQUI = "NEQ"
+    BANCOLOMBIA = "BAN"
     EFECTIVO = "EFE"
-    TRANSFER = "TRF"
-    OTRO     = "OTR"
+    CRUCE = "CRU"
+
     METODOS = [
+        (NEQUI, "Nequi"),
+        (BANCOLOMBIA, "Bancolombia"),
         (EFECTIVO, "Efectivo"),
-        (TRANSFER, "Transferencia"),
-        (OTRO, "Otro"),
+        (CRUCE, "Cruce de cuentas"),
     ]
 
     transaccion = models.ForeignKey(Transaccion, related_name="abonos", on_delete=models.CASCADE)
     valor       = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
-    metodo      = models.CharField(max_length=3, choices=METODOS, default=TRANSFER)
+    metodo      = models.CharField(max_length=3, choices=METODOS, default=BANCOLOMBIA)
+    descripcion_cruce = models.CharField(max_length=240, blank=True)
     fecha       = models.DateField(default=current_local_date)
     hora        = models.TimeField(default=current_local_time)
     notas       = models.CharField(max_length=200, blank=True)
@@ -158,6 +182,11 @@ class Abono(models.Model):
 
     class Meta:
         ordering = ["-creado"]
+
+    
+    def clean(self):
+        if self.metodo == self.CRUCE and not (self.descripcion_cruce or "").strip():
+            raise ValidationError({"descripcion_cruce": "Indica la descripción del cruce de cuentas."})
 
     def __str__(self):
         return f"Abono {self.valor:.0f} a TX #{self.transaccion_id}"
