@@ -45,6 +45,9 @@
     /* Total general - números algo más grandes */
     .big { font-size: 13px; font-weight: 700; }
     .accent { color: #AB4226; font-weight: 700; }
+
+    /* ✅ Renglón resaltante para valor pendiente */
+    .highlight-pay { color: #AB4226; font-weight: 800; font-size: 12px; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -182,7 +185,9 @@
           <tr>
             <td style="width:50%; vertical-align: top;">
               <strong>Pago a Kathe - SOLO PARA NATURA Y OTROS</strong><br>
-              <span class="small muted">Cuenta Nequi · <strong>311-355-11-89</strong></span>
+              <span class="small muted">Cuenta Nequi · <strong>311-355-11-89</strong></span><br>
+              <!-- ✅ Renglón resaltante -->
+              <span class="highlight-pay">Valor pendiente: {{ pendiente_kathe|cop }}</span>
             </td>
             <td class="right" style="vertical-align: top;">
               <table class="no-border" style="display:inline-table;">
@@ -209,7 +214,9 @@
           <tr>
             <td style="width:50%; vertical-align: top;">
               <strong>Pago a Liliana - SOLO PARA ACCESORIOS</strong><br>
-              <span class="small muted">Cuenta Nequi · <strong>311-795-94-22</strong></span>
+              <span class="small muted">Cuenta Nequi · <strong>311-795-94-22</strong></span><br>
+              <!-- ✅ Renglón resaltante -->
+              <span class="highlight-pay">Valor pendiente: {{ pendiente_liliana|cop }}</span>
             </td>
             <td class="right" style="vertical-align: top;">
               <table class="no-border" style="display:inline-table;">

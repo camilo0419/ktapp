@@ -6,21 +6,22 @@
 
 <div class="card estado-cuenta">
 
-  <!-- Botón flotante PDF -->
-  <a class="fab-pdf"
-     id="btnPdf"
-     href="{% url 'cartera:estado_cuenta_pdf' cliente.id %}?{{ request.GET.urlencode|default:'ready=1' }}"
-     title="Abrir/Descargar PDF">
-    ⬇️ PDF
-  </a>
+  <!-- ✅ Acciones flotantes: lado a lado, a la altura del compartir -->
+  <div class="fab-actions">
+    <a class="fab-pdf"
+       id="btnPdf"
+       href="{% url 'cartera:estado_cuenta_pdf' cliente.id %}?{{ request.GET.urlencode|default:'ready=1' }}"
+       title="Abrir/Descargar PDF">
+      ⬇️ PDF
+    </a>
 
-  <!-- ✅ Botón flotante Compartir -->
-  <button type="button"
-          class="fab-share"
-          id="btnSharePdf"
-          title="Compartir PDF">
-    ⤴︎ Compartir
-  </button>
+    <button type="button"
+            class="fab-share"
+            id="btnSharePdf"
+            title="Compartir PDF">
+      ⤴︎ Compartir
+    </button>
+  </div>
 
   <!-- Barra superior con volver -->
   <div class="topbar">
@@ -145,7 +146,7 @@
     </div>
   </div>
 
-  <!-- Bloques de pago -->
+  <!-- Bloques de pago (sin cambios aquí, solo QR como lo tenías) -->
   <div class="footer-ec">
     {% if show_liliana or show_kathe %}
       <h3>Información de pago</h3>
@@ -207,7 +208,7 @@
   }
 
   async function fetchAsFile(url){
-    // ✅ cache buster + no-store para iOS/PWA
+    // cache buster + no-store para iOS
     const u = new URL(url, window.location.origin);
     u.searchParams.set("_ts", Date.now());
 
@@ -229,7 +230,7 @@
     btn.textContent = "Preparando...";
 
     try{
-      // 1) Mejor caso: compartir archivo (iOS moderno / Safari)
+      // 1) Intentar compartir archivo (iOS moderno)
       if (navigator.share && navigator.canShare) {
         const file = await fetchAsFile(url);
         if (navigator.canShare({ files: [file] })) {
@@ -252,7 +253,7 @@
         return;
       }
 
-      // 3) Fallback final: copiar link y abrir PDF
+      // 3) Fallback: copiar link y abrir
       const ok = await copyToClipboard(url);
       if(ok) alert("✅ Copié el enlace del PDF. Pégalo en WhatsApp/Correo y listo.");
       window.open(url, "_blank");
@@ -376,11 +377,19 @@
 }
 .btn.mini:hover{ filter:brightness(.95); }
 
-/* FAB PDF */
-.fab-pdf{
+/* ✅ FABs: lado a lado a la altura del compartir */
+.fab-actions{
   position: fixed;
   right: 16px;
-  bottom: 22px;
+  bottom: 86px; /* MISMA ALTURA que pediste (nivel compartir) */
+  display: flex;
+  gap: 10px;
+  z-index: 50;
+}
+@media print{ .fab-actions{ display:none !important; } }
+
+.fab-pdf{
+  position: static;
   background: #CC845E;
   color: #fff;
   font-weight: 800;
@@ -388,16 +397,11 @@
   padding: 12px 14px;
   border-radius: 14px;
   box-shadow: 0 6px 18px rgba(0,0,0,.15);
-  z-index: 50;
 }
 .fab-pdf:hover{ filter: brightness(.95); }
-@media print{ .fab-pdf{ display:none !important; } }
 
-/* ✅ FAB Share */
 .fab-share{
-  position: fixed;
-  right: 16px;
-  bottom: 86px;
+  position: static;
   background: #fff;
   border: 1px solid rgba(204,132,94,.45);
   color: #7a2315;
@@ -405,12 +409,10 @@
   padding: 12px 14px;
   border-radius: 14px;
   box-shadow: 0 6px 18px rgba(0,0,0,.12);
-  z-index: 50;
   cursor: pointer;
 }
 .fab-share:hover{ filter: brightness(.98); }
 .fab-share:disabled{ opacity:.6; cursor:not-allowed; }
-@media print{ .fab-share{ display:none !important; } }
 </style>
 
 {% endblock %}

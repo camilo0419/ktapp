@@ -331,6 +331,13 @@ def estado_cuenta(request, pk):
     show_liliana   = include_acc
     show_kathe     = include_nonacc
 
+    # ✅ Valores pendientes para mostrar junto a los QR
+    pendiente_liliana = subtotals.get("ACC", zero()).get("saldo", Decimal("0")) if "ACC" in subtotals else Decimal("0")
+    pendiente_kathe = Decimal("0")
+    for _c in ("NAT", "OTR"):
+        if _c in subtotals:
+            pendiente_kathe += subtotals[_c].get("saldo", Decimal("0"))
+
     grouped_list = []
     for code in codes_order:
         grouped_list.append({
@@ -348,6 +355,8 @@ def estado_cuenta(request, pk):
         "tipos_human": tipos_human,
         "show_liliana": show_liliana,
         "show_kathe": show_kathe,
+        "pendiente_liliana": pendiente_liliana,
+        "pendiente_kathe": pendiente_kathe,
     })
 
 def _build_estado_ctx(request, cliente, tipos_codes):
@@ -415,6 +424,13 @@ def _build_estado_ctx(request, cliente, tipos_codes):
     show_liliana   = include_acc
     show_kathe     = include_nonacc
 
+    # ✅ Valores pendientes para mostrar junto a los QR
+    pendiente_liliana = subtotals.get("ACC", zero()).get("saldo", Decimal("0")) if "ACC" in subtotals else Decimal("0")
+    pendiente_kathe = Decimal("0")
+    for _c in ("NAT", "OTR"):
+        if _c in subtotals:
+            pendiente_kathe += subtotals[_c].get("saldo", Decimal("0"))
+
     grouped_list = []
     for code in codes_order:
         grouped_list.append({
@@ -432,8 +448,9 @@ def _build_estado_ctx(request, cliente, tipos_codes):
         "tipos_human": tipos_human,
         "show_liliana": show_liliana,
         "show_kathe": show_kathe,
+        "pendiente_liliana": pendiente_liliana,
+        "pendiente_kathe": pendiente_kathe,
     }
-
 from utils.pdf import link_callback  # NUEVO import
 from xhtml2pdf import pisa
 
