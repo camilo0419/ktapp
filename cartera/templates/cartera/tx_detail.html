@@ -20,7 +20,6 @@
   <div class="head-actions">
     {% if not tx.pagado %}
       <a class="btn alt" href="{% url 'cartera:tx_update' tx.id %}">Editar</a>
-      <a class="btn cobre js-paid" href="{% url 'cartera:tx_pagada' tx.id %}">Marcar pagada</a>
       <a class="btn" href="{% url 'cartera:abono_create' tx.id %}">Abono</a>
     {% endif %}
 

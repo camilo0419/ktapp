@@ -77,7 +77,6 @@
             <a class="btn alt sm" href="{% url 'cartera:tx_detail' t.id %}">Ver</a>
             {% if not t.pagado %}
               <a class="btn alt sm" href="{% url 'cartera:tx_update' t.id %}">Editar</a>
-              <a class="btn oxido sm js-paid" href="{% url 'cartera:tx_pagada' t.id %}">Marcar pagada</a>
             {% endif %}
           </div>
         </td>
