@@ -4,16 +4,7 @@
 {% block title %}Estado de cuenta - {{ cliente.nombre }}{% endblock %}
 {% block content %}
 
-{% with pdf_url=pdf_url|default:None %}
-{% endwith %}
-
 <div class="card estado-cuenta">
-
-  {# URL del PDF (con los filtros actuales) #}
-  {% with pdf_href=pdf_href|default:None %}
-  {% endwith %}
-  {% with PDF_HREF=pdf_href|default:'' %}
-  {% endwith %}
 
   <!-- Botón flotante PDF -->
   <a class="fab-pdf"
@@ -107,6 +98,8 @@
                   <td class="right">{% if it.descuento %}{{ it.descuento }}{% else %}—{% endif %}</td>
                   <td class="right">{{ it.total_linea|cop }}</td>
                 </tr>
+              {% empty %}
+                <tr><td colspan="5"><em>Sin ítems</em></td></tr>
               {% endfor %}
               </tbody>
             </table>
@@ -188,7 +181,6 @@
 (function(){
   const btn = document.getElementById("btnSharePdf");
   const pdfLink = document.getElementById("btnPdf");
-
   if (!btn || !pdfLink) return;
 
   function absoluteUrl(href){
@@ -201,7 +193,6 @@
       await navigator.clipboard.writeText(text);
       return true;
     }catch(e){
-      // fallback viejo
       const ta = document.createElement("textarea");
       ta.value = text;
       ta.style.position = "fixed";
@@ -216,7 +207,14 @@
   }
 
   async function fetchAsFile(url){
-    const res = await fetch(url, { credentials: "same-origin" });
+    // ✅ cache buster + no-store para iOS/PWA
+    const u = new URL(url, window.location.origin);
+    u.searchParams.set("_ts", Date.now());
+
+    const res = await fetch(u.toString(), {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
     if(!res.ok) throw new Error("No se pudo descargar el PDF");
     const blob = await res.blob();
     const filename = "EstadoCuenta-{{ cliente.nombre|default:'cliente'|slugify }}-{{ hoy|date:'Ymd' }}.pdf";
@@ -225,12 +223,13 @@
 
   btn.addEventListener("click", async () => {
     const url = absoluteUrl(pdfLink.getAttribute("href"));
+
     btn.disabled = true;
     const oldTxt = btn.textContent;
     btn.textContent = "Preparando...";
 
     try{
-      // 1) Si el navegador soporta compartir archivos, lo hacemos con el PDF como File
+      // 1) Mejor caso: compartir archivo (iOS moderno / Safari)
       if (navigator.share && navigator.canShare) {
         const file = await fetchAsFile(url);
         if (navigator.canShare({ files: [file] })) {
@@ -243,7 +242,7 @@
         }
       }
 
-      // 2) Fallback: compartir enlace (iOS suele mostrar sheet)
+      // 2) Fallback: compartir enlace
       if (navigator.share) {
         await navigator.share({
           title: "Estado de cuenta",
@@ -257,13 +256,14 @@
       const ok = await copyToClipboard(url);
       if(ok) alert("✅ Copié el enlace del PDF. Pégalo en WhatsApp/Correo y listo.");
       window.open(url, "_blank");
+
     } catch(err){
       console.log(err);
-      // fallback suave
       const ok = await copyToClipboard(url);
       if(ok) alert("Copié el enlace del PDF. Si no se abrió, pégalo en WhatsApp/Correo.");
       else alert("No pude compartir automáticamente. Abriendo el PDF...");
       window.open(url, "_blank");
+
     } finally {
       btn.textContent = oldTxt;
       btn.disabled = false;
@@ -380,7 +380,7 @@
 .fab-pdf{
   position: fixed;
   right: 16px;
-  bottom: 86px;
+  bottom: 22px;
   background: #CC845E;
   color: #fff;
   font-weight: 800;
@@ -397,7 +397,7 @@
 .fab-share{
   position: fixed;
   right: 16px;
-  bottom: 22px;
+  bottom: 86px;
   background: #fff;
   border: 1px solid rgba(204,132,94,.45);
   color: #7a2315;

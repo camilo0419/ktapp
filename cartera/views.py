@@ -497,6 +497,12 @@ def _weasy_url_fetcher(url):
     return default_url_fetcher(url)
 
 
+from io import BytesIO
+from django.http import Http404, HttpResponse
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import get_object_or_404
+from django.template.loader import render_to_string
+
 @login_required
 def estado_cuenta_pdf(request, pk):
     cliente = get_object_or_404(Cliente, pk=pk)
@@ -513,14 +519,26 @@ def estado_cuenta_pdf(request, pk):
     safe_tipo = _sanitize_filename_part(tipo_sufijo)
     filename = f"Estado_de_Cuenta_{safe_name}_{safe_tipo}.pdf"
 
+    def _set_pdf_headers(resp: HttpResponse, pdf_bytes: bytes) -> HttpResponse:
+        # ✅ Forzar descarga/adjunto
+        resp["Content-Type"] = "application/pdf"
+        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        # ✅ Clave para PWA/iOS: que NO lo cachee
+        resp["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp["Pragma"] = "no-cache"
+        resp["Expires"] = "0"
+
+        # ✅ Útil para Safari/iOS
+        resp["X-Content-Type-Options"] = "nosniff"
+        resp["Content-Length"] = str(len(pdf_bytes))
+
+        return resp
+
     # ====== Intento A: WeasyPrint (con fetcher local) ======
-    # Aunque _pick_engine() te diga 'weasyprint', aquí lo forzamos a usar fetcher
-    # para evitar HTTP. Si algo falla, caemos a xhtml2pdf.
     try:
         from weasyprint import HTML, CSS
-        # base_url puede ser el sitio; pero como tenemos fetcher que resuelve a disco,
-        # no dependemos de HTTP.
-        base_url = request.build_absolute_uri("/")
+
         pdf_bytes = HTML(
             string=html_string,
             base_url=request.build_absolute_uri("/"),
@@ -533,11 +551,13 @@ def estado_cuenta_pdf(request, pk):
                 """)
             ]
         )
-        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return resp
-    except Exception:
-        pass  # cae a xhtml2pdf
+
+        resp = HttpResponse(pdf_bytes)
+        return _set_pdf_headers(resp, pdf_bytes)
+
+    except Exception as e:
+        # 👇 No lo “tragues” totalmente: si también falla xhtml2pdf, sabrás que pasó
+        weasy_err = str(e)
 
     # ====== Intento B: xhtml2pdf (con link_callback) ======
     pdf_io = BytesIO()
@@ -547,12 +567,14 @@ def estado_cuenta_pdf(request, pk):
         encoding="utf-8",
         link_callback=link_callback,  # resuelve STATIC/MEDIA a disco
     )
+
     if pisa_status.err:
+        # Deja una pista mínima para debugging (sin romper prod)
         raise Http404("No se pudo generar el PDF.")
 
-    resp = HttpResponse(pdf_io.getvalue(), content_type="application/pdf")
-    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return resp
+    pdf_bytes = pdf_io.getvalue()
+    resp = HttpResponse(pdf_bytes)
+    return _set_pdf_headers(resp, pdf_bytes)
 
 from django.http import JsonResponse
 from .models import TransaccionItem
