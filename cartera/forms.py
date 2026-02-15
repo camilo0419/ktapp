@@ -73,13 +73,23 @@ class TransaccionForm(forms.ModelForm):
 class TransaccionItemForm(forms.ModelForm):
     codigo_producto = forms.CharField(
         required=False,
-        widget=forms.TextInput(attrs={"class": "input", "placeholder": "Código"}),
+        widget=forms.TextInput(attrs={
+            "class": "input js-codigo",
+            "placeholder": "Código",
+            "list": "codigos-list",
+            "autocomplete": "off",
+        }),
         label="Código",
     )
-    # Campos no requeridos por defecto: validamos en el formset
+
     producto = forms.CharField(
         required=False,
-        widget=forms.TextInput(attrs={"class": "input", "placeholder": "Producto"}),
+        widget=forms.TextInput(attrs={
+            "class": "input js-producto",
+            "placeholder": "Producto",
+            "list": "productos-list",
+            "autocomplete": "off",
+        }),
         label="Producto",
     )
     precio_unitario = forms.DecimalField(
@@ -115,6 +125,16 @@ class TransaccionItemForm(forms.ModelForm):
         if v_int not in (10, 20, 30):
             raise ValidationError("Solo 10%, 20% o 30%.")
         return v_int
+
+    def clean_producto(self):
+        v = (self.cleaned_data.get("producto") or "").strip()
+        if not v:
+            return v
+        return v[:1].upper() + v[1:].lower()
+
+    def clean_codigo_producto(self):
+        v = (self.cleaned_data.get("codigo_producto") or "").strip()
+        return v
 
 
 class TransaccionItemBaseFormSet(BaseInlineFormSet):

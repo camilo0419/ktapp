@@ -73,6 +73,10 @@
 
     <button type="button" id="add-item" class="btn">+ producto</button>
 
+    <!-- ✅ DATALISTS para autocompletar -->
+    <datalist id="productos-list"></datalist>
+    <datalist id="codigos-list"></datalist>
+
     <hr>
 
     <!-- Totales -->
@@ -138,6 +142,64 @@
 
 <script>
 (function(){
+  // ---------------------------
+  // ✅ AUTOCOMPLETE (datalist)
+  // ---------------------------
+  const productosUrl = "{% url 'cartera:producto_suggest' %}";
+  const codigosUrl   = "{% url 'cartera:codigo_suggest' %}";
+
+  let tProd = null;
+  let tCod  = null;
+
+  async function fillDatalist(url, q, listId) {
+    if (!q || q.length < 2) return;  // evita spamear
+    try{
+      const res = await fetch(url + "?q=" + encodeURIComponent(q), { credentials: "same-origin" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const dl = document.getElementById(listId);
+      if (!dl) return;
+
+      dl.innerHTML = "";
+      (data.results || []).forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        dl.appendChild(opt);
+      });
+    }catch(e){
+      // silencioso
+    }
+  }
+
+  function attachDatalistAttrs(root){
+    // Asegura que inputs (incluyendo nuevas filas) tengan list=...
+    (root || document).querySelectorAll('input[name$="producto"]').forEach(inp => {
+      inp.setAttribute("list", "productos-list");
+      inp.setAttribute("autocomplete", "off");
+      inp.classList.add("js-producto");
+    });
+    (root || document).querySelectorAll('input[name$="codigo_producto"]').forEach(inp => {
+      inp.setAttribute("list", "codigos-list");
+      inp.setAttribute("autocomplete", "off");
+      inp.classList.add("js-codigo");
+    });
+  }
+
+  // Delegación: funciona para filas existentes y nuevas
+  document.addEventListener("input", function (e) {
+    const el = e.target;
+    if (el.classList && el.classList.contains("js-producto")) {
+      clearTimeout(tProd);
+      const q = (el.value || "").trim();
+      tProd = setTimeout(() => fillDatalist(productosUrl, q, "productos-list"), 200);
+    }
+    if (el.classList && el.classList.contains("js-codigo")) {
+      clearTimeout(tCod);
+      const q = (el.value || "").trim();
+      tCod = setTimeout(() => fillDatalist(codigosUrl, q, "codigos-list"), 200);
+    }
+  });
+
   // --- Mostrar campo campaña cuando el tipo es NATURA ---
   const NAT = "NAT";
   const tipoSel = document.getElementById("id_tipo");
@@ -169,6 +231,10 @@
     const del = clone.querySelector('input[type="checkbox"][name$="DELETE"]');
     if (del) del.closest("label").remove();
     clone.querySelectorAll(".error").forEach(e => e.remove());
+
+    // ✅ asegurar datalist/clases en la fila clonada
+    attachDatalistAttrs(clone);
+
     return clone;
   }
 
@@ -224,6 +290,8 @@
     inputs.forEach(el => el.addEventListener("change", calcTotals));
   }
 
+  // ✅ Inicial: asegurar datalist en filas ya renderizadas
+  attachDatalistAttrs(document);
   document.querySelectorAll("#items-container .item-row").forEach(bindRow);
   calcTotals();
 

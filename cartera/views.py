@@ -554,6 +554,40 @@ def estado_cuenta_pdf(request, pk):
     resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
 
+from django.http import JsonResponse
+from .models import TransaccionItem
+
+
+
+@login_required
+def producto_suggest(request):
+    q = (request.GET.get("q") or "").strip()
+    qs = TransaccionItem.objects.exclude(producto__isnull=True).exclude(producto__exact="")
+
+    if q:
+        qs = qs.filter(producto__icontains=q)
+
+    # distinct() en sqlite es sensible a mayúsculas/minúsculas; igual ayuda bastante
+    results = list(
+        qs.values_list("producto", flat=True).order_by("producto").distinct()[:15]
+    )
+    return JsonResponse({"results": results})
+
+
+@login_required
+def codigo_suggest(request):
+    q = (request.GET.get("q") or "").strip()
+    qs = TransaccionItem.objects.exclude(codigo_producto__isnull=True).exclude(codigo_producto__exact="")
+
+    if q:
+        qs = qs.filter(codigo_producto__icontains=q)
+
+    results = list(
+        qs.values_list("codigo_producto", flat=True).order_by("codigo_producto").distinct()[:15]
+    )
+    return JsonResponse({"results": results})
+
+
 # ========= helpers para formset =========
 
 def _marcar_filas_vacias(formset):

@@ -32,4 +32,8 @@ urlpatterns = [
     path("clientes/<int:pk>/estado-cuenta/", views.estado_cuenta, name="estado_cuenta"),
     path("clientes/<int:pk>/estado-cuenta/pdf/", views.estado_cuenta_pdf, name="estado_cuenta_pdf"),
 
+    # SUGGESTIONS API (para autocompletar en el frontend)
+    path("api/productos/", views.producto_suggest, name="producto_suggest"),
+    path("api/codigos/", views.codigo_suggest, name="codigo_suggest"),
+
 ]
