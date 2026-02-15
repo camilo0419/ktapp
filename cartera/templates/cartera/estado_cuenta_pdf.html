@@ -47,7 +47,17 @@
     .accent { color: #AB4226; font-weight: 700; }
 
     /* ✅ Renglón resaltante para valor pendiente */
-    .highlight-pay { color: #AB4226; font-weight: 800; font-size: 12px; margin-top: 4px; }
+    .highlight-pay { color: #AB4226; font-weight: 900; font-size: 12px; }
+
+    /* ✅ Info pago estilo “como HTML” */
+    .pay-card-outer { background: #f8f4f0; border: 1px solid #d9cfc6; border-radius: 12px; }
+    .pay-title { font-size: 14px; font-weight: 800; color:#3b2e25; margin-bottom: 3px; text-align:center; }
+    .pay-sub { font-size: 11px; color:#715C47; margin-bottom: 6px; text-align:center; }
+    .qr-wrap { border: 1px dashed #CC845E; padding: 10px; background: #fff; border-radius: 10px; text-align:center; }
+    .qr-note { font-size: 11px; color:#222; margin-top: 6px; text-align:center; }
+
+    /* Importante: xhtml2pdf a veces ignora esto, por eso también amarramos tamaño en el <img> */
+    img.qr-img { width: 170px; height: 170px; }
   </style>
 </head>
 <body>
@@ -176,64 +186,61 @@
   <div class="sep"></div>
   <h3 class="mb8">Información de pago</h3>
 
-  <!-- Cards de pago en tabla (para PDF) -->
-  {% if show_kathe %}
-  <table class="soft" cellspacing="0" cellpadding="0" style="width:100%; border-collapse: collapse; margin-bottom:10px;">
+  <!-- ✅ Cards de pago estilo HTML, 2 columnas, tamaño QR AMARRADO -->
+  <table class="no-border" style="width:100%; border-collapse: collapse;">
     <tr>
-      <td style="border:1px solid #d9cfc6; padding:10px;">
-        <table class="no-border">
+      {% if show_kathe %}
+      <td class="no-border" style="width:50%; padding-right:8px; vertical-align: top;">
+        <table class="no-border pay-card-outer" style="width:100%;">
           <tr>
-            <td style="width:50%; vertical-align: top;">
-              <strong>Pago a Kathe - SOLO PARA NATURA Y OTROS</strong><br>
-              <span class="small muted">Cuenta Nequi · <strong>311-355-11-89</strong></span><br>
-              <!-- ✅ Renglón resaltante -->
-              <span class="highlight-pay">Valor pendiente: {{ pendiente_kathe|cop }}</span>
-            </td>
-            <td class="right" style="vertical-align: top;">
-              <table class="no-border" style="display:inline-table;">
-                <tr>
-                  <td class="center" style="border:1px dashed #CC845E; padding:8px;">
-                    <img src="{% static 'ktapp/img/qr_kathe.png' %}" width="150" height="150" alt="QR Kathe"><br>
-                    <span class="small muted">Escanea para pagar a Kathe</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-  {% endif %}
+            <td class="no-border" style="padding:12px;">
+              <div class="pay-title">Pago a Kathe</div>
+              <div class="pay-sub">Cuenta Nequi · <strong>311-355-11-89</strong></div>
+              <div class="center highlight-pay" style="margin-bottom:8px;">Valor pendiente: {{ pendiente_kathe|cop }}</div>
 
-  {% if show_liliana %}
-  <table class="soft" cellspacing="0" cellpadding="0" style="width:100%; border-collapse: collapse; margin-bottom:10px;">
-    <tr>
-      <td style="border:1px solid #d9cfc6; padding:10px;">
-        <table class="no-border">
-          <tr>
-            <td style="width:50%; vertical-align: top;">
-              <strong>Pago a Liliana - SOLO PARA ACCESORIOS</strong><br>
-              <span class="small muted">Cuenta Nequi · <strong>311-795-94-22</strong></span><br>
-              <!-- ✅ Renglón resaltante -->
-              <span class="highlight-pay">Valor pendiente: {{ pendiente_liliana|cop }}</span>
-            </td>
-            <td class="right" style="vertical-align: top;">
-              <table class="no-border" style="display:inline-table;">
-                <tr>
-                  <td class="center" style="border:1px dashed #CC845E; padding:8px;">
-                    <img src="{% static 'ktapp/img/qr_liliana.png' %}" width="150" height="150" alt="QR Liliana"><br>
-                    <span class="small muted">Escanea para pagar a Liliana</span>
-                  </td>
-                </tr>
-              </table>
+              <div class="qr-wrap">
+                <img
+                  class="qr-img"
+                  src="{% static 'ktapp/img/qr_kathe.png' %}"
+                  alt="QR Kathe"
+                  width="170" height="170"
+                  style="width:170px; height:170px;"
+                /><br>
+                <div class="qr-note">Escanea para pagar a Kathe</div>
+              </div>
             </td>
           </tr>
         </table>
       </td>
+      {% endif %}
+
+      {% if show_liliana %}
+      <td class="no-border" style="width:50%; padding-left:8px; vertical-align: top;">
+        <table class="no-border pay-card-outer" style="width:100%;">
+          <tr>
+            <td class="no-border" style="padding:12px;">
+              <div class="pay-title">Pago a Liliana</div>
+              <div class="pay-sub">Cuenta Nequi · <strong>311-795-94-22</strong></div>
+              <div class="center highlight-pay" style="margin-bottom:8px;">Valor pendiente: {{ pendiente_liliana|cop }}</div>
+
+              <div class="qr-wrap">
+                <img
+                  class="qr-img"
+                  src="{% static 'ktapp/img/qr_liliana.png' %}"
+                  alt="QR Liliana"
+                  width="170" height="170"
+                  style="width:170px; height:170px;"
+                /><br>
+                <div class="qr-note">Escanea para pagar a Liliana</div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+      {% endif %}
     </tr>
   </table>
-  {% endif %}
+
   {% endif %}
 
 </body>
